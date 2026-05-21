@@ -1,0 +1,3 @@
+# Alembic 迁移脚本目录
+
+`alembic revision --autogenerate -m "init core tables"` 生成的迁移会出现在 `versions/` 下。

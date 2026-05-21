@@ -1,0 +1,14 @@
+[project]
+name = "ann-backend"
+version = "1.0.0"
+description = "ANN Retrieval Backend (FastAPI + SQLAlchemy + Celery + FAISS/HNSW)"
+requires-python = ">=3.11"
+readme = "README.md"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
