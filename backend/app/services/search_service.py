@@ -25,6 +25,7 @@ from app.models.search_task import SearchTask
 from app.models.user import User
 from app.services import index_service as index_svc
 from app.utils.vector_codec import stack_vectors
+from app.services.data_access_service import DataAccessService
 
 
 class SearchService:
@@ -53,6 +54,7 @@ class SearchService:
         rows = (
             self.db.query(CellVector)
             .filter(CellVector.dataset_id == dataset_id, CellVector.vector_type == "pca")
+            .order_by(CellVector.id.asc())
             .all()
         )
         if not rows:
@@ -69,20 +71,24 @@ class SearchService:
             if i < 0 or i >= len(rows):
                 continue
             row = rows[i]
-            meta = (
-                self.db.query(CellMetadata)
-                .filter(CellMetadata.dataset_id == dataset_id, CellMetadata.cell_id == row.cell_id)
-                .first()
-            )
+            # meta = (
+            #     self.db.query(CellMetadata)
+            #     .filter(CellMetadata.dataset_id == dataset_id, CellMetadata.cell_id == row.cell_id)
+            #     .first()
+            # )
+            meta = DataAccessService(self.db).get_metadata_by_cell_id(dataset_id, row.cell_id)
             results.append(
                 {
                     "rank": rank,
                     "cell_id": row.cell_id,
                     "distance": float(dist),
                     "score": float(1.0 / (1.0 + float(dist))),
-                    "cell_type": getattr(meta, "cell_type", None),
-                    "organ": getattr(meta, "organ", None),
-                    "sample_id": getattr(meta, "sample_id", None),
+                    # "cell_type": getattr(meta, "cell_type", None),
+                    # "organ": getattr(meta, "organ", None),
+                    # "sample_id": getattr(meta, "sample_id", None),
+                    "cell_type": meta.get("cell_type"),
+                    "organ": meta.get("organ"),
+                    "sample_id": meta.get("sample_id"),
                 }
             )
 
@@ -153,21 +159,28 @@ class SearchService:
             vec = np.asarray(payload["vector"], dtype=np.float32)
             return vec.reshape(1, -1)
 
+        # cell_id = payload.get("cell_id")
+        # if not cell_id:
+        #     raise ParamMissingError("cell_id is required")
+        # row = (
+        #     self.db.query(CellVector)
+        #     .filter(
+        #         CellVector.dataset_id == dataset_id,
+        #         CellVector.cell_id == cell_id,
+        #         CellVector.vector_type == "pca",
+        #     )
+        #     .first()
+        # )
+        # if not row:
+        #     raise DatasetNotFoundError("cell_id not found")
+        # return np.frombuffer(row.vector_blob, dtype=np.float32).reshape(1, -1)
+
         cell_id = payload.get("cell_id")
         if not cell_id:
             raise ParamMissingError("cell_id is required")
-        row = (
-            self.db.query(CellVector)
-            .filter(
-                CellVector.dataset_id == dataset_id,
-                CellVector.cell_id == cell_id,
-                CellVector.vector_type == "pca",
-            )
-            .first()
-        )
-        if not row:
-            raise DatasetNotFoundError("cell_id not found")
-        return np.frombuffer(row.vector_blob, dtype=np.float32).reshape(1, -1)
+
+        vector = DataAccessService(self.db).get_vector_by_cell_id(dataset_id, cell_id)
+        return vector.reshape(1, -1)
 
     def _exact_search(self, rows: list[CellVector], query: np.ndarray, top_k: int):
         matrix = stack_vectors([row.vector_blob for row in rows])

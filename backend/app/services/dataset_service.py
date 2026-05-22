@@ -1,5 +1,6 @@
 import json
 import uuid
+import math
 from pathlib import Path
 
 from fastapi import UploadFile
@@ -42,6 +43,8 @@ class DatasetService:
             "filename": filename,
             "size": size,
             "format": fmt,
+            "chunk_size": settings.upload_chunk_size,
+            "expected_chunks": math.ceil(size / settings.upload_chunk_size),
             "received_chunks": [],
         }
         (session_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
@@ -53,10 +56,21 @@ class DatasetService:
         session_dir = self.upload_root / str(user_id) / upload_id
         if not session_dir.exists():
             raise DatasetNotFoundError("upload session not found")
+        
+        meta_path = session_dir / "meta.json"
+        if not meta_path.exists():
+            raise DatasetNotFoundError("upload session not found")
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
         chunk_path = session_dir / f"chunk_{chunk_index:06d}.part"
         with chunk_path.open("wb") as f:
             while content := await chunk_file.read(1024 * 1024):
                 f.write(content)
+    # 去重
+        received_chunks = set(meta.get("received_chunks", []))
+        received_chunks.add(chunk_index)
+        meta["received_chunks"] = sorted(received_chunks)
+        meta_path.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+
         return chunk_index + 1
 
     def complete_upload(self, user_id: int, upload_id: str) -> dict:
@@ -67,6 +81,16 @@ class DatasetService:
         if not meta_path.exists():
             raise DatasetNotFoundError("upload session not found")
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
+
+        expected_chunks = int(meta.get("expected_chunks", 0))
+        received_chunks = meta.get("received_chunks", [])
+
+        if expected_chunks <= 0:
+            raise ValidationFailed("invalid expected chunk count")
+
+        missing_chunks = [i for i in range(expected_chunks) if i not in received_chunks]
+        if missing_chunks:
+            raise ValidationFailed(f"missing chunks: {missing_chunks}")
 
         merged_path = session_dir / meta["filename"]
         chunk_files = sorted(session_dir.glob("chunk_*.part"))
