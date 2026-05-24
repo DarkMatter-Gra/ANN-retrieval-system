@@ -10,6 +10,7 @@ from app.models.ann_index import ANNIndex
 from app.models.cell_vector import CellVector
 from app.models.search_task import SearchTask
 from app.tasks.celery_app import celery_app
+from app.utils.index_io import write_faiss, write_hnsw
 from app.utils.time import utcnow_iso
 from app.utils.vector_codec import stack_vectors
 
@@ -27,7 +28,7 @@ def _build(index_obj: ANNIndex, vectors: np.ndarray) -> None:
         else:
             index = faiss.IndexFlatL2(dim)
         index.add(vectors)
-        faiss.write_index(index, index_obj.file_path)
+        write_faiss(index, index_obj.file_path)
     elif index_obj.index_type == "ivf_pq":
         nlist = int(index_obj.params_json.get("nlist", 128))
         m = int(index_obj.params_json.get("m", 16))
@@ -37,7 +38,7 @@ def _build(index_obj: ANNIndex, vectors: np.ndarray) -> None:
         index.train(vectors)
         index.add(vectors)
         index.nprobe = int(index_obj.params_json.get("nprobe", min(16, nlist)))
-        faiss.write_index(index, index_obj.file_path)
+        write_faiss(index, index_obj.file_path)
     elif index_obj.index_type == "hnsw":
         space = "l2" if index_obj.metric_type == "l2" else "cosine"
         hnsw = hnswlib.Index(space=space, dim=dim)
@@ -48,7 +49,7 @@ def _build(index_obj: ANNIndex, vectors: np.ndarray) -> None:
         )
         hnsw.add_items(vectors, np.arange(vectors.shape[0]))
         hnsw.set_ef(int(index_obj.params_json.get("ef", 64)))
-        hnsw.save_index(index_obj.file_path)
+        write_hnsw(hnsw, index_obj.file_path)
     else:
         raise ValueError(f"unsupported index type: {index_obj.index_type}")
 

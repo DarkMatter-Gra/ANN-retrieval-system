@@ -10,6 +10,19 @@ from app.utils.response import success
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
+@router.get("")
+def list_users(
+    page: int = 1,
+    page_size: int = 20,
+    keyword: str | None = None,
+    role: str | None = None,
+    status: str | None = None,
+    db: Session = Depends(get_db),
+    operator: User = Depends(require_roles("admin")),
+):
+    return success(UserService(db).list_users(page, page_size, keyword, role, status))
+
+
 @router.patch("/{user_id}")
 def update_user(
     user_id: int,

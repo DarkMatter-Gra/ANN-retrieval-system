@@ -14,7 +14,7 @@ celery_app = Celery(
     ],
 )
 
-celery_app.conf.update(
+conf_kwargs = dict(
     task_track_started=True,
     task_serializer="json",
     result_serializer="json",
@@ -22,3 +22,14 @@ celery_app.conf.update(
     timezone="Asia/Shanghai",
     enable_utc=False,
 )
+
+# Support a local filesystem queue so the project can run without Redis.
+if settings.redis_url.startswith("filesystem://"):
+    _broker_dir = str(settings.data_path / "celery-broker" / "in")
+    conf_kwargs["broker_transport_options"] = {
+        "data_folder_in": _broker_dir,
+        "data_folder_out": _broker_dir,
+        "processed_folder": str(settings.data_path / "celery-broker" / "processed"),
+    }
+
+celery_app.conf.update(**conf_kwargs)

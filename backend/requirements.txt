@@ -28,6 +28,7 @@ hnswlib
 celery
 redis
 rq
+pywin32; sys_platform == "win32"
 
 weasyprint
 playwright

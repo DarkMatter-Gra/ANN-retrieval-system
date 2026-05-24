@@ -18,9 +18,17 @@ from app.utils.time import utcnow_iso
 from app.utils.vector_codec import encode_vector
 
 
-def load_input_dataset(file_path: str, file_format: str):
+def load_input_dataset(file_path: str, file_format: str, max_cells: int = 30_000):
     if file_format == "h5ad":
-        return sc.read_h5ad(file_path)
+        # Use backed mode to avoid loading the full matrix into RAM upfront
+        adata = sc.read_h5ad(file_path, backed="r")
+        if adata.n_obs > max_cells:
+            rng = np.random.default_rng(42)
+            idx = np.sort(rng.choice(adata.n_obs, max_cells, replace=False))
+            adata = adata[idx].to_memory()
+        else:
+            adata = adata.to_memory()
+        return adata
     if file_format == "csv":
         df = pd.read_csv(file_path, index_col=0)
         return ad.AnnData(

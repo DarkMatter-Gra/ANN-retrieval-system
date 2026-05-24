@@ -48,3 +48,47 @@ class UserService:
         self.db.commit()
         write_audit(operator.id, "delete_user", "user", str(user_id))
         return {"user_id": user.id, "deleted": True}
+
+    def list_users(
+        self,
+        page: int,
+        page_size: int,
+        keyword: str | None,
+        role: str | None,
+        status: str | None,
+    ) -> dict:
+        query = self.db.query(User)
+        if keyword:
+            query = query.filter(
+                User.username.contains(keyword) | User.email.contains(keyword)
+            )
+        if role:
+            query = query.filter(User.role == role)
+        if status:
+            query = query.filter(User.status == status)
+        else:
+            query = query.filter(User.status != "deleted")
+        total = query.count()
+        users = (
+            query.order_by(User.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+            .all()
+        )
+        return {
+            "list": [
+                {
+                    "user_id": u.id,
+                    "username": u.username,
+                    "email": u.email,
+                    "role": u.role,
+                    "status": u.status,
+                    "quota_limit": u.quota_limit,
+                    "created_at": u.created_at.isoformat() if u.created_at else None,
+                }
+                for u in users
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }

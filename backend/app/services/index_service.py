@@ -4,6 +4,8 @@ from pathlib import Path
 import faiss
 import hnswlib
 import numpy as np
+
+from app.utils.index_io import load_hnsw, read_faiss
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -206,7 +208,7 @@ class IndexService:
 
     def _load_index_object(self, index_obj: ANNIndex):
         if index_obj.index_type in {"flat", "ivf_pq"}:
-            return faiss.read_index(index_obj.file_path)
+            return read_faiss(index_obj.file_path)
         if index_obj.index_type == "hnsw":
             sample = (
                 self.db.query(CellVector)
@@ -216,8 +218,7 @@ class IndexService:
             if not sample:
                 raise ValidationFailed("no vectors available")
             space = "l2" if index_obj.metric_type == "l2" else "cosine"
-            obj = hnswlib.Index(space=space, dim=sample.dim)
-            obj.load_index(index_obj.file_path)
+            obj = load_hnsw(index_obj.file_path, space=space, dim=sample.dim)
             obj.set_ef(int(index_obj.params_json.get("ef", 64)))
             return obj
         raise ValidationFailed(f"unsupported index type: {index_obj.index_type}")

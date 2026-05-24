@@ -5,6 +5,8 @@ from pathlib import Path
 import faiss
 import hnswlib
 import numpy as np
+
+from app.utils.index_io import load_hnsw, read_faiss
 import pandas as pd
 from sqlalchemy.orm import Session
 
@@ -192,15 +194,14 @@ class SearchService:
         cached = index_svc.get_loaded_index(index_obj.id)
         if index_obj.index_type in {"flat", "ivf_pq"}:
             if cached is None:
-                cached = faiss.read_index(index_obj.file_path)
+                cached = read_faiss(index_obj.file_path)
                 index_svc.cache_index(index_obj.id, cached)
             distances, nn_idx = cached.search(query.astype(np.float32), top_k)
             return distances[0], nn_idx[0]
         if index_obj.index_type == "hnsw":
             if cached is None:
                 space = "l2" if index_obj.metric_type == "l2" else "cosine"
-                cached = hnswlib.Index(space=space, dim=int(query.shape[1]))
-                cached.load_index(index_obj.file_path)
+                cached = load_hnsw(index_obj.file_path, space=space, dim=int(query.shape[1]))
                 cached.set_ef(int(index_obj.params_json.get("ef", 64)))
                 index_svc.cache_index(index_obj.id, cached)
             ef = (payload or {}).get("ef_search")
