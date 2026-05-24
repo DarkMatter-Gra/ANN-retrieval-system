@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models.ann_index import ANNIndex
 from app.models.dataset import ExpressionMetadata
+from app.models.search_task import SearchTask
 from app.tasks.celery_app import celery_app
 from app.utils.file_store import ensure_dir
 
@@ -18,11 +19,24 @@ from app.utils.file_store import ensure_dir
 def generate_report_task(self, payload: dict, user_id: int):
     db = SessionLocal()
     try:
-        dataset_id = int(payload.get("dataset_id"))
+        query_id = payload.get("query_id")
+        query_task = db.query(SearchTask).filter(SearchTask.task_id == query_id).first()
+        if not query_task:
+            raise ValueError("query_id not found")
+
+        dataset_id = int(query_task.dataset_id)
         dataset = db.query(ExpressionMetadata).filter(ExpressionMetadata.id == dataset_id).first()
         indexes = db.query(ANNIndex).filter(ANNIndex.dataset_id == dataset_id).all()
 
         report = {
+            "title": payload.get("title") or "ANN Search Diagnostic Report",
+            "note": payload.get("note"),
+            "query": {
+                "query_id": query_id,
+                "index_id": query_task.index_id,
+                "payload": query_task.request_payload,
+                "status": query_task.status,
+            },
             "dataset": {
                 "id": dataset_id,
                 "name": getattr(dataset, "dataset_name", None),

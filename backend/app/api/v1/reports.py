@@ -18,8 +18,14 @@ def create_diagnostic_report(
     """生成诊断报告（异步）。"""
     from app.tasks.report_tasks import generate_report_task
 
-    task_id = generate_report_task.delay(
+    task_result = generate_report_task.delay(
         payload.model_dump(),
         current_user.id,
-    ).id
-    return success({"task_id": task_id, "status": "pending"})
+    )
+    data = {
+        "task_id": task_result.id,
+        "status": "done" if task_result.ready() else "pending",
+    }
+    if task_result.ready():
+        data["result_path"] = task_result.result
+    return success(data)

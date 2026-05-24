@@ -11,6 +11,7 @@ from app.core.exceptions import (
 )
 from app.models.cell_metadata import CellMetadata
 from app.models.dataset import ExpressionMetadata
+from app.models.search_task import SearchTask
 from app.models.user import User
 from app.services.search_service import SearchService
 
@@ -78,7 +79,17 @@ class VisualizationService:
     def get_highlights(self, query_id: str, current_user: User) -> dict:
         snapshot = SearchService.get_query_snapshot(query_id)
         if not snapshot:
-            raise NotFoundError("query_id not found or expired")
+            task = self.db.query(SearchTask).filter(SearchTask.task_id == query_id).first()
+            if not task or task.task_type != "search":
+                raise NotFoundError("query_id not found or expired")
+            payload = task.request_payload or {}
+            snapshot = {
+                "dataset_id": task.dataset_id,
+                "index_id": task.index_id,
+                "query_cell_id": payload.get("cell_id"),
+                "results": payload.get("results", []),
+                "highlight_points": payload.get("highlight_points") or {"query": None, "neighbors": []},
+            }
 
         dataset_id = int(snapshot["dataset_id"])
         self._ensure_dataset(dataset_id, current_user)

@@ -14,7 +14,7 @@ aiofiles
 httpx
 orjson
 
-numpy
+numpy>=1.26,<2
 pandas
 anndata
 h5py

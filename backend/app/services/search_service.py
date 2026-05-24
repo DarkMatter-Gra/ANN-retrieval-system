@@ -1,9 +1,8 @@
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
-import faiss
-import hnswlib
 import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
@@ -11,7 +10,6 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.exceptions import (
     ConflictError,
-    DatasetNotFoundError,
     IndexNotFoundError,
     ParamMissingError,
     ResourceForbiddenError,
@@ -20,12 +18,13 @@ from app.core.exceptions import (
 from app.models.ann_index import ANNIndex
 from app.models.cell_metadata import CellMetadata
 from app.models.cell_vector import CellVector
-from app.models.dataset import ExpressionMetadata
 from app.models.search_task import SearchTask
 from app.models.user import User
 from app.services import index_service as index_svc
-from app.utils.vector_codec import stack_vectors
+from app.services.ann_engine import ANNEngine
 from app.services.data_access_service import DataAccessService
+from app.utils.time import utcnow_iso
+from app.utils.vector_codec import stack_vectors
 
 
 class SearchService:
@@ -50,6 +49,7 @@ class SearchService:
         query_vector = self._load_query_vector(dataset_id, payload)
         top_k = int(payload.get("top_k", 10))
         mode = payload.get("mode", "ann")
+        metric = index_obj.metric_type
 
         rows = (
             self.db.query(CellVector)
@@ -59,38 +59,41 @@ class SearchService:
         )
         if not rows:
             raise ValidationFailed("no vectors found for dataset")
+        rows = self._rows_in_index_order(index_obj, rows)
+        self._validate_query_dim(query_vector, rows[0].dim)
+
+        filters = payload.get("filters") or {}
+        filtered_rows = self._filter_rows_by_metadata(dataset_id, rows, filters)
+        if not filtered_rows:
+            raise ValidationFailed("no vectors match filters")
 
         if mode == "exact":
-            distances, nn_idx = self._exact_search(rows, query_vector, top_k)
+            search_rows = filtered_rows
+            distances, nn_idx = self._exact_search(search_rows, query_vector, top_k, metric)
+            results = self._build_results(dataset_id, search_rows, nn_idx, distances, metric)
+            mode_used = "exact"
         else:
-            distances, nn_idx = self._approx_search(index_obj, query_vector, top_k, payload)
-
-        results = []
-        for rank, (idx, dist) in enumerate(zip(nn_idx, distances), start=1):
-            i = int(idx)
-            if i < 0 or i >= len(rows):
-                continue
-            row = rows[i]
-            # meta = (
-            #     self.db.query(CellMetadata)
-            #     .filter(CellMetadata.dataset_id == dataset_id, CellMetadata.cell_id == row.cell_id)
-            #     .first()
-            # )
-            meta = DataAccessService(self.db).get_metadata_by_cell_id(dataset_id, row.cell_id)
-            results.append(
-                {
-                    "rank": rank,
-                    "cell_id": row.cell_id,
-                    "distance": float(dist),
-                    "score": float(1.0 / (1.0 + float(dist))),
-                    # "cell_type": getattr(meta, "cell_type", None),
-                    # "organ": getattr(meta, "organ", None),
-                    # "sample_id": getattr(meta, "sample_id", None),
-                    "cell_type": meta.get("cell_type"),
-                    "organ": meta.get("organ"),
-                    "sample_id": meta.get("sample_id"),
-                }
+            distances, nn_idx = self._approx_search(
+                index_obj=index_obj,
+                query=query_vector,
+                top_k=self._ann_fetch_k(top_k, len(rows), bool(filters)),
+                payload=payload,
             )
+            allowed_ids = {row.cell_id for row in filtered_rows}
+            results = self._build_results(
+                dataset_id=dataset_id,
+                rows=rows,
+                indices=nn_idx,
+                distances=distances,
+                metric=metric,
+                allowed_cell_ids=allowed_ids,
+                limit=top_k,
+            )
+            mode_used = "ann"
+            if len(results) < min(top_k, len(filtered_rows)):
+                distances, nn_idx = self._exact_search(filtered_rows, query_vector, top_k, metric)
+                results = self._build_results(dataset_id, filtered_rows, nn_idx, distances, metric)
+                mode_used = "ann_with_exact_filter_fallback"
 
         latency_ms = round((time.perf_counter() - start) * 1000, 2)
         query_id = uuid.uuid4().hex
@@ -103,12 +106,26 @@ class SearchService:
             "results": results,
             "highlight_points": highlight_points,
         }
+        if payload.get("_record_task", True):
+            self._record_search_task(
+                query_id=query_id,
+                current_user=current_user,
+                dataset_id=dataset_id,
+                index_id=index_id,
+                payload=payload,
+                latency_ms=latency_ms,
+                result_count=len(results),
+                mode_used=mode_used,
+                results=results,
+                highlight_points=highlight_points,
+            )
 
         return {
             "query_id": query_id,
             "results": results,
             "latency_ms": latency_ms,
             "recall_estimate": index_obj.recall_score,
+            "mode_used": mode_used,
             "highlight_points": highlight_points,
         }
 
@@ -135,6 +152,7 @@ class SearchService:
         self.db.add(task)
         self.db.commit()
         batch_search_task.delay(task.task_id)
+        self.db.refresh(task)
         return {"task_id": task.task_id, "status": task.status}
 
     # ----------------------------- 内部 -----------------------------
@@ -182,33 +200,181 @@ class SearchService:
         vector = DataAccessService(self.db).get_vector_by_cell_id(dataset_id, cell_id)
         return vector.reshape(1, -1)
 
-    def _exact_search(self, rows: list[CellVector], query: np.ndarray, top_k: int):
-        matrix = stack_vectors([row.vector_blob for row in rows])
-        dists = np.linalg.norm(matrix - query, axis=1)
-        nn_idx = np.argsort(dists)[:top_k]
-        return dists[nn_idx], nn_idx
+    @staticmethod
+    def _validate_query_dim(query: np.ndarray, expected_dim: int) -> None:
+        actual_dim = int(query.shape[1])
+        if actual_dim != int(expected_dim):
+            raise ValidationFailed(f"query vector dim mismatch: expected {expected_dim}, got {actual_dim}")
 
-    def _approx_search(self, index_obj: ANNIndex, query: np.ndarray, top_k: int, payload: dict | None = None):
+    def _filter_rows_by_metadata(
+        self,
+        dataset_id: int,
+        rows: list[CellVector],
+        filters: dict[str, Any],
+    ) -> list[CellVector]:
+        normalized = {k: v for k, v in filters.items() if v not in (None, "", [])}
+        if not normalized:
+            return rows
+
+        metas = (
+            self.db.query(CellMetadata)
+            .filter(CellMetadata.dataset_id == dataset_id)
+            .all()
+        )
+        matched_ids = {
+            meta.cell_id
+            for meta in metas
+            if self._metadata_matches(meta, normalized)
+        }
+        return [row for row in rows if row.cell_id in matched_ids]
+
+    @staticmethod
+    def _rows_in_index_order(index_obj: ANNIndex, rows: list[CellVector]) -> list[CellVector]:
+        cell_ids = ANNEngine.read_id_map(index_obj)
+        if not cell_ids or len(cell_ids) != len(rows):
+            return rows
+        row_map = {row.cell_id: row for row in rows}
+        ordered = [row_map[cell_id] for cell_id in cell_ids if cell_id in row_map]
+        return ordered if len(ordered) == len(rows) else rows
+
+    @staticmethod
+    def _metadata_matches(meta: CellMetadata, filters: dict[str, Any]) -> bool:
+        for key, expected in filters.items():
+            actual = getattr(meta, key, None)
+            if actual is None:
+                obs_ext = meta.obs_ext or {}
+                actual = obs_ext.get(key)
+                if actual is None and key.startswith("obs_ext."):
+                    actual = obs_ext.get(key.split(".", 1)[1])
+            if isinstance(expected, list):
+                expected_values = {str(v) for v in expected}
+                if str(actual) not in expected_values:
+                    return False
+            elif str(actual) != str(expected):
+                return False
+        return True
+
+    @staticmethod
+    def _ann_fetch_k(top_k: int, total: int, has_filters: bool) -> int:
+        if total <= 0:
+            return 0
+        if not has_filters:
+            return min(top_k, total)
+        return min(total, max(top_k, top_k * 20))
+
+    def _exact_search(self, rows: list[CellVector], query: np.ndarray, top_k: int, metric: str):
+        matrix = stack_vectors([row.vector_blob for row in rows])
+        return ANNEngine.exact_search(matrix, query, metric, top_k)
+
+    def _approx_search(
+        self,
+        index_obj: ANNIndex,
+        query: np.ndarray,
+        top_k: int,
+        payload: dict | None = None,
+    ):
         cached = index_svc.get_loaded_index(index_obj.id)
-        if index_obj.index_type in {"flat", "ivf_pq"}:
-            if cached is None:
-                cached = faiss.read_index(index_obj.file_path)
-                index_svc.cache_index(index_obj.id, cached)
-            distances, nn_idx = cached.search(query.astype(np.float32), top_k)
-            return distances[0], nn_idx[0]
-        if index_obj.index_type == "hnsw":
-            if cached is None:
-                space = "l2" if index_obj.metric_type == "l2" else "cosine"
-                cached = hnswlib.Index(space=space, dim=int(query.shape[1]))
-                cached.load_index(index_obj.file_path)
-                cached.set_ef(int(index_obj.params_json.get("ef", 64)))
-                index_svc.cache_index(index_obj.id, cached)
-            ef = (payload or {}).get("ef_search")
-            if ef:
-                cached.set_ef(int(ef))
-            nn_idx, distances = cached.knn_query(query.astype(np.float32), k=top_k)
-            return distances[0], nn_idx[0]
-        raise ValidationFailed(f"unsupported index type: {index_obj.index_type}")
+        if cached is None:
+            try:
+                cached = ANNEngine.load(index_obj, dim=int(query.shape[1]))
+            except ValueError as exc:
+                raise ValidationFailed(str(exc)) from exc
+            index_svc.cache_index(index_obj.id, cached)
+        try:
+            return ANNEngine.search(index_obj, cached, query, top_k, payload or {})
+        except ValueError as exc:
+            raise ValidationFailed(str(exc)) from exc
+
+    def _build_results(
+        self,
+        dataset_id: int,
+        rows: list[CellVector],
+        indices,
+        distances,
+        metric: str,
+        allowed_cell_ids: set[str] | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        result_pairs: list[tuple[CellVector, float]] = []
+        for idx, dist in zip(indices, distances):
+            i = int(idx)
+            if i < 0 or i >= len(rows):
+                continue
+            row = rows[i]
+            if allowed_cell_ids is not None and row.cell_id not in allowed_cell_ids:
+                continue
+            result_pairs.append((row, float(dist)))
+            if limit is not None and len(result_pairs) >= limit:
+                break
+
+        data_access = DataAccessService(self.db)
+        meta_map = {
+            item["cell_id"]: item
+            for item in data_access.get_metadata_by_cell_ids(
+                dataset_id,
+                [row.cell_id for row, _ in result_pairs],
+            )
+        }
+
+        results = []
+        for rank, (row, dist) in enumerate(result_pairs, start=1):
+            meta = meta_map.get(row.cell_id, {})
+            results.append(
+                {
+                    "rank": rank,
+                    "cell_id": row.cell_id,
+                    "distance": float(dist),
+                    "score": self._score_from_distance(metric, float(dist)),
+                    "cell_type": meta.get("cell_type"),
+                    "organ": meta.get("organ"),
+                    "sample_id": meta.get("sample_id"),
+                }
+            )
+        return results
+
+    @staticmethod
+    def _score_from_distance(metric: str, distance: float) -> float:
+        if metric in {"ip", "cosine"}:
+            return float(-distance if metric == "ip" else 1.0 - distance)
+        return float(1.0 / (1.0 + max(distance, 0.0)))
+
+    def _record_search_task(
+        self,
+        query_id: str,
+        current_user: User,
+        dataset_id: int,
+        index_id: int,
+        payload: dict,
+        latency_ms: float,
+        result_count: int,
+        mode_used: str,
+        results: list[dict],
+        highlight_points: dict,
+    ) -> None:
+        task_payload = {
+            **{k: v for k, v in payload.items() if not k.startswith("_")},
+            "latency_ms": latency_ms,
+            "result_count": result_count,
+            "mode_used": mode_used,
+            "results": results,
+            "highlight_points": highlight_points,
+        }
+        now = utcnow_iso()
+        self.db.add(
+            SearchTask(
+                task_id=query_id,
+                owner_user_id=current_user.id,
+                task_type="search",
+                dataset_id=dataset_id,
+                index_id=index_id,
+                status="done",
+                progress=100,
+                request_payload=task_payload,
+                started_at=now,
+                finished_at=now,
+            )
+        )
+        self.db.commit()
 
     def build_highlight_points(self, dataset_id: int, payload: dict, results: list[dict]) -> dict:
         umap_path = Path(settings.data_path) / "processed" / str(dataset_id) / "umap.csv"

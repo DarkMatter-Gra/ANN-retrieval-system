@@ -59,9 +59,15 @@ def batch_search_task(self, task_id: str):
                 "dataset_id": payload["dataset_id"],
                 "index_id": payload["index_id"],
                 "top_k": payload.get("top_k", 10),
-                "mode": payload.get("mode", "approx"),
+                "mode": payload.get("mode", "ann"),
+                "filters": payload.get("filters", {}),
+                "_record_task": False,
                 **query,
             }
+            if "filters" not in query and payload.get("filters"):
+                single_payload["filters"] = payload["filters"]
+            if "ef_search" not in query and payload.get("ef_search"):
+                single_payload["ef_search"] = payload["ef_search"]
             result = service.search(owner, single_payload)
             for item in result["results"]:
                 flat_rows.append(
