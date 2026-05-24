@@ -204,7 +204,7 @@ python -m pytest
 当前结果：
 
 ```text
-4 passed
+6 passed, 1 warning
 ```
 
 测试覆盖：
@@ -218,6 +218,24 @@ python -m pytest
 - API 创建索引
 - `.index / .id_map.json / .meta.json` 产物生成
 - 查询向量维度不匹配异常
+- 诊断报告 JSON/PDF 生成与下载
+- 导出/报告下载路径穿越与越权访问拦截
+
+## 4.1 真实数据与性能补充测试
+
+已补充老师提供的 `liver.h5ad` 真实数据测试：
+
+- 细胞数：69032
+- 基因数：32397
+- PCA 向量维度：30
+- 预处理、建索引、ANN 检索、精确检索、过滤检索、批量导出、指标、JSON/PDF 报告均通过
+
+已补充 HNSW benchmark：
+
+- Flat 精确检索作为 baseline
+- 比较 HNSW `M / ef_construction / ef_search` 参数
+- 输出 recall@10、平均延迟、p50、p95、p99、构建耗时
+- 当前推荐参数：`M=32, ef_construction=200, ef_search=256`
 
 ## 5. 当前边界
 

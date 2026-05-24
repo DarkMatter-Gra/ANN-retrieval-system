@@ -27,5 +27,9 @@ def create_diagnostic_report(
         "status": "done" if task_result.ready() else "pending",
     }
     if task_result.ready():
-        data["result_path"] = task_result.result
+        if isinstance(task_result.result, dict):
+            data.update(task_result.result)
+            data["result_path"] = task_result.result.get("json_path")
+        else:
+            data["result_path"] = task_result.result
     return success(data)

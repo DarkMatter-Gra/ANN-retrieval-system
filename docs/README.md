@@ -8,8 +8,12 @@
 |---|---|
 | `report.tex` | 软件开发报告 LaTeX 骨架 |
 | `E模块交付说明.md` | E 模块职责范围、已完成代码、接口能力、当前边界 |
+| `E模块最终交付清单.md` | E 模块提交范围、运行产物边界、复现命令 |
+| `E模块报告正文素材.md` | 可直接写入最终报告的 E 模块正文素材 |
 | `E模块测试报告.md` | 测试目标、测试环境、测试数据、测试用例、测试结论 |
+| `真实数据测试报告.md` | 老师 `liver.h5ad` 数据端到端测试结果 |
 | `ANN引擎实现与升级说明.md` | 当前 ANN 算法实现、存在问题、升级后的统一 ANN 引擎、后续优化方向 |
+| `ANN性能基准测试报告.md` | HNSW 参数 recall@10 / latency 基准测试结果 |
 | `ANN_API_文档_工程内最新版.md` | 当前工程内 API 文档副本 |
 | `C模块完成情况说明.md` | C 数据处理模块完成说明 |
 | `D模块完成总结.md` | D ANN 索引模块完成总结 |
@@ -32,6 +36,8 @@
 | `../backend/app/services/ann_engine.py` | 统一 ANN 引擎 |
 | `../backend/app/api/v1/files.py` | 批量检索结果下载接口 |
 | `../backend/scripts/smoke_backend.py` | 后端核心链路烟测脚本 |
+| `../backend/scripts/real_liver_backend_test.py` | 真实 `liver.h5ad` 端到端测试脚本 |
+| `../backend/scripts/benchmark_ann.py` | ANN 参数基准测试脚本 |
 | `../backend/tests/test_e_search_flow.py` | E 模块自动化测试 |
 | `../ANN_API_文档.md` | 后端 API 总文档 |
 
@@ -42,13 +48,16 @@
 ```bash
 python scripts/smoke_backend.py
 python -m pytest
+python scripts/benchmark_ann.py --dataset-id 1 --queries 200 --top-k 10
 ```
 
 当前验证结论：
 
 ```text
 smoke_backend.py 通过
-pytest: 4 passed
+pytest: 6 passed
+真实数据端到端测试通过
+ANN benchmark 通过
 ```
 
 ## 演示接口入口

@@ -264,6 +264,10 @@ def main() -> None:
         headers,
     )
     assert report["status"] == "done"
+    assert report["download_url"].endswith(".pdf")
+    pdf_response = client.get(report["download_url"], headers=headers)
+    assert pdf_response.status_code == 200, pdf_response.text
+    assert pdf_response.content.startswith(b"%PDF")
 
     print(
         {
@@ -274,6 +278,7 @@ def main() -> None:
             "index_id": index_id,
             "query_id": search["query_id"],
             "batch_task_id": batch["task_id"],
+            "report_pdf": report["download_url"],
         }
     )
 

@@ -1925,6 +1925,9 @@
 | --- | --- | --- |
 | `data.task_id` | string | 报告生成任务 ID |
 | `data.status` | string | 任务初始状态，通常为 `pending` |
+| `data.result_path` | string | JSON 报告本地路径 |
+| `data.json_download_url` | string | JSON 报告下载地址 |
+| `data.download_url` | string | PDF 报告下载地址 |
 
 **请求示例**
 
@@ -1951,9 +1954,19 @@
   "message": "ok",
   "data": {
     "task_id": "task_report_001",
-    "status": "pending"
+    "status": "done",
+    "result_path": "C:/.../reports/diagnostic_1_task_report_001.json",
+    "json_download_url": "/api/v1/files/reports/diagnostic_1_task_report_001.json",
+    "download_url": "/api/v1/files/reports/diagnostic_1_task_report_001.pdf"
   }
 }
+```
+
+PDF 报告下载：
+
+```http
+GET /api/v1/files/reports/diagnostic_1_task_report_001.pdf
+Authorization: Bearer <token>
 ```
 
 **错误码说明**

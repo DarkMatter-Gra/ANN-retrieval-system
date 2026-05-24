@@ -90,7 +90,7 @@ python -m pytest
 当前测试结果：
 
 ```text
-4 passed
+6 passed, 1 warning
 ```
 
 ## 6. 测试用例
@@ -231,6 +231,37 @@ python -m pytest
 - 业务错误码 `40002`
 - 错误信息提示维度不匹配
 
+### TC-E-007 诊断报告 PDF 下载
+
+步骤：
+
+1. 执行单次检索获得 `query_id`
+2. 请求 `POST /api/v1/reports/diagnostic`
+3. 读取返回的 `download_url`
+4. 请求 `/api/v1/files/reports/{filename}.pdf`
+
+期望：
+
+- HTTP 200
+- 返回 PDF 文件
+- 文件内容以 `%PDF` 开头
+- 同时返回 JSON 报告下载地址
+
+### TC-E-008 文件下载安全边界
+
+步骤：
+
+1. 请求 `/api/v1/files/exports/..%5Csecret.csv`
+2. 请求 `/api/v1/files/reports/diagnostic.bad.exe`
+3. 使用其他普通用户下载当前用户生成的 PDF 报告
+
+期望：
+
+- 路径穿越文件名返回 HTTP 400
+- 不支持的报告扩展名返回 HTTP 400
+- 非 owner 用户下载报告返回 HTTP 403
+- 业务错误码分别为 `40002` 和 `40302`
+
 ## 7. 测试结论
 
 E 模块已通过当前自动化测试：
@@ -244,10 +275,16 @@ E 模块已通过当前自动化测试：
 - 指标接口可读取延迟
 - 索引产物完整
 - 异常输入有明确错误
+- 诊断报告 PDF 下载可用
+- 文件下载路径和权限边界可控
 
-后续若接入真实大数据，应继续补充：
+真实数据补充测试已完成：
 
 - 真实 `.h5ad` 数据端到端测试
 - 大规模 Top-K 延迟测试
-- HNSW / IVF_PQ 召回率测试
+- HNSW recall@10 / latency benchmark
+
+仍可继续扩展：
+
+- IVF_PQ 召回率测试
 - 并发查询压力测试

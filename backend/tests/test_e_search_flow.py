@@ -6,7 +6,10 @@ os.environ.setdefault("CELERY_TASK_ALWAYS_EAGER", "true")
 
 from fastapi.testclient import TestClient
 
+from app.core.security import hash_password
+from app.db.session import SessionLocal
 from app.main import app
+from app.models.user import User
 from app.services.search_service import SearchService
 from scripts.smoke_backend import PASSWORD, USERNAME, seed_smoke_data
 
@@ -16,6 +19,37 @@ def auth_headers(client: TestClient) -> dict[str, str]:
     assert response.status_code == 200
     token = response.json()["data"]["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+def auth_headers_for(client: TestClient, username: str, password: str) -> dict[str, str]:
+    response = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+    assert response.status_code == 200
+    token = response.json()["data"]["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def ensure_user(username: str, password: str, role: str = "dev") -> None:
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if user:
+            user.password_hash = hash_password(password)
+            user.role = role
+            user.status = "active"
+        else:
+            db.add(
+                User(
+                    username=username,
+                    email=f"{username}@example.com",
+                    password_hash=hash_password(password),
+                    role=role,
+                    quota_limit=5,
+                    status="active",
+                )
+            )
+        db.commit()
+    finally:
+        db.close()
 
 
 def test_single_search_filter_and_persistent_highlights():
@@ -154,3 +188,84 @@ def test_search_rejects_dimension_mismatch():
     )
     assert response.status_code == 400
     assert response.json()["code"] == 40002
+
+
+def test_diagnostic_report_generates_pdf_download():
+    dataset_id, index_id = seed_smoke_data()
+    client = TestClient(app)
+    headers = auth_headers(client)
+
+    search = client.post(
+        "/api/v1/search",
+        json={
+            "dataset_id": dataset_id,
+            "index_id": index_id,
+            "query_type": "cell_id",
+            "cell_id": "cell_a",
+            "top_k": 3,
+            "mode": "ann",
+        },
+        headers=headers,
+    )
+    assert search.status_code == 200
+    query_id = search.json()["data"]["query_id"]
+
+    report = client.post(
+        "/api/v1/reports/diagnostic",
+        json={"query_id": query_id, "title": "Pytest diagnostic"},
+        headers=headers,
+    )
+    assert report.status_code == 200
+    report_data = report.json()["data"]
+    assert report_data["status"] == "done"
+    assert report_data["download_url"].endswith(".pdf")
+    assert report_data["json_download_url"].endswith(".json")
+
+    pdf = client.get(report_data["download_url"], headers=headers)
+    assert pdf.status_code == 200
+    assert pdf.content.startswith(b"%PDF")
+
+    json_report = client.get(report_data["json_download_url"], headers=headers)
+    assert json_report.status_code == 200
+    assert json_report.json()["query"]["query_id"] == query_id
+
+
+def test_file_download_rejects_path_traversal_and_foreign_report_access():
+    dataset_id, index_id = seed_smoke_data()
+    client = TestClient(app)
+    owner_headers = auth_headers(client)
+
+    bad_export = client.get("/api/v1/files/exports/..%5Csecret.csv", headers=owner_headers)
+    assert bad_export.status_code == 400
+    assert bad_export.json()["code"] == 40002
+
+    bad_report = client.get("/api/v1/files/reports/diagnostic.bad.exe", headers=owner_headers)
+    assert bad_report.status_code == 400
+    assert bad_report.json()["code"] == 40002
+
+    search = client.post(
+        "/api/v1/search",
+        json={
+            "dataset_id": dataset_id,
+            "index_id": index_id,
+            "query_type": "cell_id",
+            "cell_id": "cell_a",
+            "top_k": 3,
+            "mode": "ann",
+        },
+        headers=owner_headers,
+    )
+    assert search.status_code == 200
+    report = client.post(
+        "/api/v1/reports/diagnostic",
+        json={"query_id": search.json()["data"]["query_id"], "title": "Permission diagnostic"},
+        headers=owner_headers,
+    )
+    assert report.status_code == 200
+    download_url = report.json()["data"]["download_url"]
+
+    ensure_user("codex_other_user", "OtherPass123", role="dev")
+    other_headers = auth_headers_for(client, "codex_other_user", "OtherPass123")
+    forbidden = client.get(download_url, headers=other_headers)
+    assert forbidden.status_code == 403
+    assert forbidden.json()["code"] == 40302

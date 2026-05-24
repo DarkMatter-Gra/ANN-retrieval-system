@@ -100,9 +100,12 @@ def run_preprocess(db: Session, task_id: str, dataset_id: int) -> None:
     db.query(CellMetadata).filter(CellMetadata.dataset_id == dataset.id).delete()
 
     obs_columns = list(adata.obs.columns)
+    vector_batch = []
+    metadata_batch = []
+    batch_size = 2000
     for idx, cell_name in enumerate(adata.obs_names.tolist()):
         vec = vectors[idx]
-        db.add(
+        vector_batch.append(
             CellVector(
                 dataset_id=dataset.id,
                 cell_id=str(cell_name),
@@ -113,7 +116,7 @@ def run_preprocess(db: Session, task_id: str, dataset_id: int) -> None:
             )
         )
         row = adata.obs.iloc[idx]
-        db.add(
+        metadata_batch.append(
             CellMetadata(
                 dataset_id=dataset.id,
                 cell_id=str(cell_name),
@@ -127,6 +130,17 @@ def run_preprocess(db: Session, task_id: str, dataset_id: int) -> None:
                 qc_flags={},
             )
         )
+        if len(vector_batch) >= batch_size:
+            db.bulk_save_objects(vector_batch)
+            db.bulk_save_objects(metadata_batch)
+            db.flush()
+            vector_batch.clear()
+            metadata_batch.clear()
+
+    if vector_batch:
+        db.bulk_save_objects(vector_batch)
+        db.bulk_save_objects(metadata_batch)
+        db.flush()
 
     output_dir = Path(settings.data_path) / "processed" / str(dataset.id)
     output_dir.mkdir(parents=True, exist_ok=True)

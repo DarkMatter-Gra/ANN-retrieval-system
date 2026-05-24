@@ -21,6 +21,7 @@ h5py
 scanpy
 scikit-learn
 scipy
+matplotlib
 
 faiss-cpu
 hnswlib
@@ -28,9 +29,6 @@ hnswlib
 celery
 redis
 rq
-
-weasyprint
-playwright
 
 pytest
 pytest-asyncio
