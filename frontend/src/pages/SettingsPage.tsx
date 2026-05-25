@@ -15,6 +15,8 @@ export function SettingsPage() {
     const normalized = normalizeBaseUrl(urlInput);
     setBaseUrl(normalized);
     showToast(`API 地址已保存：${normalized}`, 'success');
+    // 保存后立即做一次健康检查，方便用户感知是否连通
+    void checkHealth();
   }
 
   async function checkHealth() {

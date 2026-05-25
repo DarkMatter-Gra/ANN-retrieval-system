@@ -12,7 +12,10 @@ export function IndexesPage() {
   const { toast, showToast, handleError } = useToast();
 
   const [indexes, setIndexes] = useState<IndexItem[]>([]);
-  const [selectedDatasetId] = useState<number | null>(() => Number(localStorage.getItem(DS_KEY) || 0) || null);
+  // 跟随 storage 变化重新读取，避免数据集页切换后索引页不同步
+  const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(
+    () => Number(localStorage.getItem(DS_KEY) || 0) || null,
+  );
   const [selectedIndexId, setSelectedIndexId] = useState<number | null>(() => Number(localStorage.getItem(IDX_KEY) || 0) || null);
   const [indexDetail, setIndexDetail] = useState<Record<string, unknown> | null>(null);
   const [status, setStatus] = useState('');
@@ -20,6 +23,25 @@ export function IndexesPage() {
   const [pageSize, setPageSize] = useState(20);
   const [auditComment, setAuditComment] = useState('上线审核说明');
   const [rollbackVersion, setRollbackVersion] = useState('');
+
+  // 同一窗口内通过监听 storage 字段变化，跨页同步当前数据集
+  useEffect(() => {
+    const onFocus = () => {
+      const cur = Number(localStorage.getItem(DS_KEY) || 0) || null;
+      if (cur !== selectedDatasetId) {
+        setSelectedDatasetId(cur);
+        // 数据集变了，原索引大概率不属于新数据集，清空选中
+        setSelectedIndexId(null);
+        localStorage.removeItem(IDX_KEY);
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('storage', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('storage', onFocus);
+    };
+  }, [selectedDatasetId]);
 
   useEffect(() => {
     localStorage.setItem(IDX_KEY, String(selectedIndexId || ''));
@@ -116,6 +138,8 @@ export function IndexesPage() {
               <option value="running">running</option>
               <option value="done">done</option>
               <option value="failed">failed</option>
+              <option value="published">published</option>
+              <option value="rolled_back">rolled_back</option>
             </select>
           </label>
           <label className="toolbar-field small">
@@ -142,7 +166,7 @@ export function IndexesPage() {
                   <td><strong>{idx.index_id}</strong></td>
                   <td>{idx.index_name ?? '-'}</td>
                   <td>{idx.index_type ?? '-'}</td>
-                  <td>{idx.metric_type ?? idx.status ?? '-'}</td>
+                  <td>{idx.metric_type ?? '-'}</td>
                   <td>{idx.version_no ?? '-'}</td>
                   <td>{statusLabel(idx.build_status ?? idx.status)}</td>
                   <td>召回：{idx.recall_score ?? idx.recall ?? '-'} / 内存：{formatBytes(idx.memory_cost_mb ?? idx.memory_usage ?? 0)}</td>

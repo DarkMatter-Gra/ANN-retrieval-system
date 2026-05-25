@@ -22,6 +22,22 @@ function joinApiUrl(baseUrl: string, path: string) {
   return new URL(path.replace(/^\/+/, ''), `${normalizedBase}/`).toString();
 }
 
+/**
+ * 把后端返回的相对路径（如 `/api/v1/files/exports/xxx.json`）
+ * 拼接为可直接打开的绝对 URL。若已是 http(s) 绝对地址则原样返回。
+ */
+export function absoluteUrl(baseUrl: string, urlOrPath: string | null | undefined) {
+  const v = String(urlOrPath || '').trim();
+  if (!v) return '';
+  if (/^https?:\/\//i.test(v)) return v;
+  try {
+    const origin = new URL(`${normalizeBaseUrl(baseUrl)}/`).origin;
+    return new URL(v, origin).toString();
+  } catch {
+    return v;
+  }
+}
+
 export function formatDateTime(value: string | number | Date | null | undefined) {
   if (!value) {
     return '-';
