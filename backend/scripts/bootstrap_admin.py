@@ -22,7 +22,7 @@ from app.core.enums import UserRole, UserStatus  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.db.base import Base  # noqa: E402
 from app.db.session import SessionLocal, engine  # noqa: E402
-from app.models.user import User  # noqa: E402
+from app.models import User  # noqa: E402  # 通过 __init__ 触发所有模型注册到 Base.metadata
 
 
 def ensure_schema() -> None:

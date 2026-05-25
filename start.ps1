@@ -185,6 +185,7 @@ function Ensure-BackendDependencies {
   }
 
   Invoke-External -FilePath $backendPython -Arguments @('-m', 'alembic', 'upgrade', 'head') -WorkingDirectory $backendRoot -Description 'Run database migrations'
+  Invoke-External -FilePath $backendPython -Arguments @('scripts/bootstrap_admin.py') -WorkingDirectory $backendRoot -Description 'Bootstrap default admin (admin / Admin@123)'
 }
 
 function Ensure-FrontendDependencies {
