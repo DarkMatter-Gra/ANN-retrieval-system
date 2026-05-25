@@ -241,13 +241,15 @@ export function DatasetsPage() {
           </table>
         </div>
 
-        <div className="inline-actions spacing-top" style={{ justifyContent: 'center', gap: '0.5rem' }}>
-          <button className="btn btn-secondary" type="button" onClick={() => setPage(1)} disabled={page === 1}>首页</button>
-          <button className="btn btn-secondary" type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>上一页</button>
-          <span style={{ padding: '0.84rem 0.6rem', color: 'var(--text-soft)', fontSize: '0.9rem' }}>{page} / {totalPages}</span>
-          <button className="btn btn-secondary" type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>下一页</button>
-          <button className="btn btn-secondary" type="button" onClick={() => setPage(totalPages)} disabled={page >= totalPages}>末页</button>
-        </div>
+        {total > 0 && (
+          <div className="inline-actions spacing-top" style={{ justifyContent: 'center', gap: '0.5rem' }}>
+            <button className="btn btn-secondary" type="button" onClick={() => setPage(1)} disabled={page === 1}>首页</button>
+            <button className="btn btn-secondary" type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>上一页</button>
+            <span style={{ padding: '0.84rem 0.6rem', color: 'var(--text-soft)', fontSize: '0.9rem' }}>{page} / {totalPages}</span>
+            <button className="btn btn-secondary" type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>下一页</button>
+            <button className="btn btn-secondary" type="button" onClick={() => setPage(totalPages)} disabled={page >= totalPages}>末页</button>
+          </div>
+        )}
       </article>
 
       {/* Detail + Logs */}

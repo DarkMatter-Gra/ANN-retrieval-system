@@ -120,6 +120,7 @@ export function UsersPage() {
     e.preventDefault();
     if (!targetUserId) { showToast('请输入或选择用户 ID', 'error'); return; }
     if (!newPassword) { showToast('请输入新密码', 'error'); return; }
+    if (newPassword.length < 8) { showToast('新密码至少 8 位', 'error'); return; }
     try {
       await apiCall({
         baseUrl, token, path: `/users/${targetUserId}/reset-password`, method: 'POST',

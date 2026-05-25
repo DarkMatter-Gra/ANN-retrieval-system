@@ -25,7 +25,8 @@ export function RegisterPage() {
           username: String(form.get('username') || '').trim(),
           email: String(form.get('email') || '').trim(),
           password: String(form.get('password') || '').trim(),
-          role: String(form.get('role') || 'user').trim(),
+          // 注册一律使用 user 角色，由管理员后续在用户管理页调整
+          role: 'user',
         },
       });
       setSuccess(`注册成功！用户名：${resp.data.username}，角色：${resp.data.role}。请返回登录。`);
@@ -68,14 +69,10 @@ export function RegisterPage() {
           </label>
           <label style={{ gridColumn: '1 / -1' }}>
             <span>角色</span>
-            <select name="role" defaultValue="user">
-              <option value="admin">admin — 系统管理员</option>
-              <option value="dev">dev — 研发人员</option>
-              <option value="user">user — 业务用户</option>
-              <option value="service">service — 服务账号</option>
-              <option value="readonly">readonly — 只读观察</option>
-              <option value="auditor">auditor — 审计人员</option>
-            </select>
+            <input value="user — 业务用户（默认）" readOnly style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-soft)' }} />
+            <small style={{ color: 'var(--text-soft)', fontSize: '0.8rem' }}>
+              注册账号默认角色为 user。如需 admin / dev / service / readonly / auditor，请联系系统管理员在「用户管理」页调整。
+            </small>
           </label>
           <button className="btn btn-primary" type="submit" disabled={submitting} style={{ gridColumn: '1 / -1' }}>
             {submitting ? '注册中…' : '注册'}

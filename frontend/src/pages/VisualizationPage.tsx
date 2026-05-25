@@ -62,6 +62,13 @@ export function VisualizationPage() {
 
   const view = useMemo(() => (embedding ? computeView(embedding, colorBy) : null), [embedding, colorBy]);
 
+  // 根据返回数据动态提取可作为 colorBy 的字段（非 cell_id、非数值的可枚举属性）
+  const colorByOptions = useMemo(() => {
+    const sample = embedding?.points?.[0];
+    if (!sample) return [];
+    return Object.keys(sample).filter((k) => k !== 'cell_id' && typeof sample[k] !== 'number');
+  }, [embedding]);
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -91,9 +98,15 @@ export function VisualizationPage() {
             <span>颜色字段</span>
             <select value={colorBy} onChange={(e) => setColorBy(e.target.value)}>
               <option value="">none</option>
-              <option value="cell_type">cell_type</option>
-              <option value="organ">organ</option>
-              <option value="sample_id">sample_id</option>
+              {colorByOptions.length
+                ? colorByOptions.map((k) => <option key={k} value={k}>{k}</option>)
+                : (
+                  <>
+                    <option value="cell_type">cell_type</option>
+                    <option value="organ">organ</option>
+                    <option value="sample_id">sample_id</option>
+                  </>
+                )}
             </select>
           </label>
           <label className="toolbar-field small">

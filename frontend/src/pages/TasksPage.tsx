@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { apiCall, formatDateTime, statusLabel } from '../api';
+import { useEffect, useRef, useState } from 'react';
+import { absoluteUrl, apiCall, formatDateTime, statusLabel } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../lib/useToast';
 import type { TaskSnapshot } from '../types';
@@ -14,6 +14,16 @@ export function TasksPage() {
   const [task, setTask] = useState<TaskSnapshot | null>(null);
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
   const timerRef = useRef<number | null>(null);
+
+  // 卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
 
   async function loadTask(id: string): Promise<TaskSnapshot | null> {
     if (!id) { showToast('请输入 task_id', 'error'); return null; }
@@ -51,7 +61,8 @@ export function TasksPage() {
       const resp = await apiCall<{ download_url: string }>({
         baseUrl, token, path: `/tasks/${taskId}/export`, query: { format: exportFormat },
       });
-      window.open(resp.data.download_url, '_blank', 'noreferrer');
+      const url = absoluteUrl(baseUrl, resp.data.download_url);
+      window.open(url, '_blank', 'noreferrer');
       showToast('已获取导出链接', 'success');
     } catch (err) {
       handleError(err);
@@ -92,7 +103,7 @@ export function TasksPage() {
               <div><strong>开始时间：</strong>{formatDateTime(task.started_at)}</div>
               <div><strong>结束时间：</strong>{formatDateTime(task.finished_at)}</div>
               {task.result_url && (
-                <div><strong>结果 URL：</strong><a href={task.result_url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>{task.result_url}</a></div>
+                <div><strong>结果 URL：</strong><a href={absoluteUrl(baseUrl, task.result_url)} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>{task.result_url}</a></div>
               )}
               {task.error_message && (
                 <div><strong>错误信息：</strong><span style={{ color: 'var(--danger)' }}>{task.error_message}</span></div>

@@ -1,5 +1,5 @@
-import { type FormEvent, useRef, useState } from 'react';
-import { apiCall, clamp, safeJsonParse, statusLabel } from '../api';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { absoluteUrl, apiCall, clamp, safeJsonParse, statusLabel } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { useToast } from '../lib/useToast';
 import type { TaskSnapshot } from '../types';
@@ -14,6 +14,16 @@ export function BatchSearchPage() {
   const [task, setTask] = useState<TaskSnapshot | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const timerRef = useRef<number | null>(null);
+
+  // 组件卸载时清理 setInterval，避免离开页面后仍持续 fetch
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
 
   async function loadTask(taskId: string): Promise<TaskSnapshot | null> {
     try {
@@ -107,11 +117,11 @@ export function BatchSearchPage() {
               </select>
             </label>
             <label className="full">
-              <span>queries JSON</span>
+              <span>queries JSON（cell_id 应来自 obs_names，例如 AAACCTGAGCAGGTCA-1_2）</span>
               <textarea
                 name="queries"
                 rows={8}
-                defaultValue={'[{"query_type":"cell_id","cell_id":"cell_0001"}]'}
+                defaultValue={'[{"query_type":"cell_id","cell_id":"AAACCTGAGCAGGTCA-1_2"}]'}
                 spellCheck={false}
               />
             </label>
@@ -131,10 +141,21 @@ export function BatchSearchPage() {
                 <div><strong>状态：</strong>{statusLabel(task.status)}</div>
                 <div><strong>进度：</strong>{task.progress ?? 0}%</div>
                 {task.error_message && <div><strong>错误：</strong><span style={{ color: 'var(--danger)' }}>{task.error_message}</span></div>}
-                {task.result_url && (
-                  <div>
-                    <strong>结果：</strong>
-                    <a href={task.result_url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>下载结果</a>
+                {task.task_id && task.status === 'done' && (
+                  <div className="inline-actions" style={{ marginTop: '0.4rem' }}>
+                    <strong>下载：</strong>
+                    <a
+                      className="btn btn-secondary"
+                      href={absoluteUrl(baseUrl, `/api/v1/files/exports/${task.task_id}.json`)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >下载 JSON</a>
+                    <a
+                      className="btn btn-secondary"
+                      href={absoluteUrl(baseUrl, `/api/v1/files/exports/${task.task_id}.csv`)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >下载 CSV</a>
                   </div>
                 )}
               </>

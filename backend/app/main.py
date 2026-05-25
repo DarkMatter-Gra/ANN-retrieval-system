@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import settings
@@ -56,3 +57,11 @@ def health():
 
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+# 暴露任务/报告导出文件目录，供前端 download_url 直接打开
+# 例如：GET /api/v1/files/exports/{task_id}.json
+app.mount(
+    f"{settings.api_v1_prefix}/files/exports",
+    StaticFiles(directory=str(settings.export_path)),
+    name="exports",
+)

@@ -16,17 +16,32 @@ export function SearchPage() {
   const [highlights, setHighlights] = useState<{ query_id?: string; neighbors?: { cell_id: string; point: number[] }[] } | null>(null);
   const [highlightQueryId, setHighlightQueryId] = useState(() => localStorage.getItem(QUERY_KEY) || '');
   const [submitting, setSubmitting] = useState(false);
+  const [queryType, setQueryType] = useState<'cell_id' | 'vector'>('cell_id');
 
   async function handleSearch(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setSubmitting(true);
     const form = new FormData(e.currentTarget);
-    const queryType = String(form.get('query_type') || 'cell_id');
+    const qt = String(form.get('query_type') || 'cell_id');
 
+    // 入参校验，避免空值打到后端拿 400
+    const datasetId = Number(form.get('dataset_id'));
+    const indexId = Number(form.get('index_id'));
+    if (!datasetId || !indexId) { showToast('请填写数据集 ID 和索引 ID', 'error'); return; }
+
+    if (qt === 'cell_id') {
+      const cellId = String(form.get('cell_id') || '').trim();
+      if (!cellId) { showToast('查询类型为 cell_id 时必须填写 cell_id（来自数据集 obs_names）', 'error'); return; }
+    } else {
+      let vec: number[];
+      try { vec = normalizeVectorInput(form.get('vector')); } catch (err) { showToast((err as Error).message || '向量格式错误', 'error'); return; }
+      if (!vec.length || vec.some((n) => !Number.isFinite(n))) { showToast('向量不能为空且必须为数值', 'error'); return; }
+    }
+
+    setSubmitting(true);
     const payload: Record<string, unknown> = {
-      dataset_id: Number(form.get('dataset_id')),
-      index_id: Number(form.get('index_id')),
-      query_type: queryType,
+      dataset_id: datasetId,
+      index_id: indexId,
+      query_type: qt,
       top_k: clamp(Number(form.get('top_k') || 10), 1, 1000),
       mode: String(form.get('mode') || 'ann'),
       metric: String(form.get('metric') || 'l2'),
@@ -36,7 +51,7 @@ export function SearchPage() {
     const efSearch = String(form.get('ef_search') || '').trim();
     if (efSearch) payload.ef_search = Number(efSearch);
 
-    if (queryType === 'cell_id') {
+    if (qt === 'cell_id') {
       payload.cell_id = String(form.get('cell_id') || '').trim();
     } else {
       payload.vector = normalizeVectorInput(form.get('vector'));
@@ -94,18 +109,33 @@ export function SearchPage() {
             </label>
             <label>
               <span>查询类型</span>
-              <select name="query_type" defaultValue="cell_id">
+              <select
+                name="query_type"
+                value={queryType}
+                onChange={(e) => setQueryType(e.target.value as 'cell_id' | 'vector')}
+              >
                 <option value="cell_id">cell_id</option>
                 <option value="vector">vector</option>
               </select>
             </label>
             <label>
               <span>cell_id</span>
-              <input name="cell_id" type="text" placeholder="cell_0001" />
+              <input
+                name="cell_id"
+                type="text"
+                placeholder="如 AAACCTGAGCAGGTCA-1_2（来自 obs_names）"
+                disabled={queryType !== 'cell_id'}
+              />
             </label>
             <label className="full">
               <span>向量（逗号分隔）</span>
-              <textarea name="vector" rows={3} placeholder="1.0, 2.0, 3.0" spellCheck={false} />
+              <textarea
+                name="vector"
+                rows={3}
+                placeholder="1.0, 2.0, 3.0"
+                spellCheck={false}
+                disabled={queryType !== 'vector'}
+              />
             </label>
             <label>
               <span>Top K</span>

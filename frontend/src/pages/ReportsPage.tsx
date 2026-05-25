@@ -30,7 +30,7 @@ export function ReportsPage() {
         },
       });
       setReport(resp.data);
-      showToast('诊断报告已生成', 'success');
+      showToast('诊断报告任务已提交，可在任务监控页查看进度', 'success');
     } catch (err) {
       handleError(err);
     } finally {
