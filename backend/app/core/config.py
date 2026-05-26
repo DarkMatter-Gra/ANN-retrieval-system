@@ -23,7 +23,9 @@ class Settings(BaseSettings):
 
     upload_chunk_size: int = 4 * 1024 * 1024
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
     @property
     def data_path(self) -> Path:
@@ -45,7 +47,12 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # 启动时确保关键目录存在
-for _path in (settings.data_path, settings.index_path, settings.report_path, settings.export_path):
+for _path in (
+    settings.data_path,
+    settings.index_path,
+    settings.report_path,
+    settings.export_path,
+):
     _path.mkdir(parents=True, exist_ok=True)
 (settings.data_path / "raw").mkdir(parents=True, exist_ok=True)
 (settings.data_path / "processed").mkdir(parents=True, exist_ok=True)

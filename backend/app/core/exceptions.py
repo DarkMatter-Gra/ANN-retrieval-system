@@ -2,8 +2,12 @@ from fastapi import HTTPException, status
 
 
 class BusinessError(HTTPException):
-    def __init__(self, code: int, message: str, http_status: int = status.HTTP_400_BAD_REQUEST):
-        super().__init__(status_code=http_status, detail={"code": code, "message": message})
+    def __init__(
+        self, code: int, message: str, http_status: int = status.HTTP_400_BAD_REQUEST
+    ):
+        super().__init__(
+            status_code=http_status, detail={"code": code, "message": message}
+        )
         self.code = code
         self.message = message
 

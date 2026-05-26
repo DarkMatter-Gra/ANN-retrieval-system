@@ -8,9 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.exceptions import (
-    ConflictError,
     DatasetNotFoundError,
-    ParamMissingError,
     ResourceForbiddenError,
     ValidationFailed,
 )
@@ -33,7 +31,9 @@ class DatasetService:
         self.upload_root = ensure_dir(settings.data_path / "raw" / "uploads")
 
     # ----------------------------- 上传链路 -----------------------------
-    def init_upload(self, user_id: int, filename: str, size: int, fmt: str) -> tuple[str, int]:
+    def init_upload(
+        self, user_id: int, filename: str, size: int, fmt: str
+    ) -> tuple[str, int]:
         if fmt not in SUPPORTED_FORMATS:
             raise ValidationFailed("unsupported file format")
         upload_id = uuid.uuid4().hex
@@ -47,7 +47,9 @@ class DatasetService:
             "expected_chunks": math.ceil(size / settings.upload_chunk_size),
             "received_chunks": [],
         }
-        (session_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+        (session_dir / "meta.json").write_text(
+            json.dumps(meta, ensure_ascii=False), encoding="utf-8"
+        )
         return upload_id, settings.upload_chunk_size
 
     async def save_chunk(
@@ -56,7 +58,7 @@ class DatasetService:
         session_dir = self.upload_root / str(user_id) / upload_id
         if not session_dir.exists():
             raise DatasetNotFoundError("upload session not found")
-        
+
         meta_path = session_dir / "meta.json"
         if not meta_path.exists():
             raise DatasetNotFoundError("upload session not found")
@@ -65,7 +67,7 @@ class DatasetService:
         with chunk_path.open("wb") as f:
             while content := await chunk_file.read(1024 * 1024):
                 f.write(content)
-    # 去重
+        # 去重
         received_chunks = set(meta.get("received_chunks", []))
         received_chunks.add(chunk_index)
         meta["received_chunks"] = sorted(received_chunks)
@@ -123,7 +125,13 @@ class DatasetService:
         self.db.add(task)
         self.db.commit()
 
-        write_audit(user_id, "upload_dataset", "dataset", str(dataset.id), {"format": meta["format"]})
+        write_audit(
+            user_id,
+            "upload_dataset",
+            "dataset",
+            str(dataset.id),
+            {"format": meta["format"]},
+        )
         preprocess_dataset_task.delay(task.task_id, dataset.id, user_id)
         return {"dataset_id": dataset.id, "task_id": task.task_id, "status": "pending"}
 
@@ -135,7 +143,9 @@ class DatasetService:
         page_size: int,
         keyword: str | None = None,
     ) -> dict:
-        query = self.db.query(ExpressionMetadata).filter(ExpressionMetadata.deleted_flag.is_(False))
+        query = self.db.query(ExpressionMetadata).filter(
+            ExpressionMetadata.deleted_flag.is_(False)
+        )
         if current_user.role != "admin":
             query = query.filter(ExpressionMetadata.owner_user_id == current_user.id)
         if keyword:
@@ -171,7 +181,11 @@ class DatasetService:
             raise ResourceForbiddenError()
 
     def get_detail(self, dataset_id: int, current_user: User) -> dict:
-        dataset = self.db.query(ExpressionMetadata).filter(ExpressionMetadata.id == dataset_id).first()
+        dataset = (
+            self.db.query(ExpressionMetadata)
+            .filter(ExpressionMetadata.id == dataset_id)
+            .first()
+        )
         if not dataset or dataset.deleted_flag:
             raise DatasetNotFoundError()
         self._check_owner(dataset, current_user)
@@ -197,18 +211,34 @@ class DatasetService:
         }
 
     def delete_dataset(self, dataset_id: int, current_user: User) -> dict:
-        dataset = self.db.query(ExpressionMetadata).filter(ExpressionMetadata.id == dataset_id).first()
+        dataset = (
+            self.db.query(ExpressionMetadata)
+            .filter(ExpressionMetadata.id == dataset_id)
+            .first()
+        )
         if not dataset or dataset.deleted_flag:
             raise DatasetNotFoundError()
         self._check_owner(dataset, current_user)
 
         # 级联清理 DB 资源（统计数量）
-        cell_meta_count = self.db.query(CellMetadata).filter(CellMetadata.dataset_id == dataset_id).count()
-        cell_vec_count = self.db.query(CellVector).filter(CellVector.dataset_id == dataset_id).count()
-        ann_count = self.db.query(ANNIndex).filter(ANNIndex.dataset_id == dataset_id).count()
+        cell_meta_count = (
+            self.db.query(CellMetadata)
+            .filter(CellMetadata.dataset_id == dataset_id)
+            .count()
+        )
+        cell_vec_count = (
+            self.db.query(CellVector)
+            .filter(CellVector.dataset_id == dataset_id)
+            .count()
+        )
+        ann_count = (
+            self.db.query(ANNIndex).filter(ANNIndex.dataset_id == dataset_id).count()
+        )
 
         self.db.query(CellVector).filter(CellVector.dataset_id == dataset_id).delete()
-        self.db.query(CellMetadata).filter(CellMetadata.dataset_id == dataset_id).delete()
+        self.db.query(CellMetadata).filter(
+            CellMetadata.dataset_id == dataset_id
+        ).delete()
         self.db.query(ANNIndex).filter(ANNIndex.dataset_id == dataset_id).delete()
         self.db.query(SearchTask).filter(SearchTask.dataset_id == dataset_id).delete()
         dataset.deleted_flag = True
@@ -228,7 +258,11 @@ class DatasetService:
         }
 
     def get_logs(self, dataset_id: int, current_user: User) -> dict:
-        dataset = self.db.query(ExpressionMetadata).filter(ExpressionMetadata.id == dataset_id).first()
+        dataset = (
+            self.db.query(ExpressionMetadata)
+            .filter(ExpressionMetadata.id == dataset_id)
+            .first()
+        )
         if not dataset or dataset.deleted_flag:
             raise DatasetNotFoundError()
         self._check_owner(dataset, current_user)
@@ -246,6 +280,8 @@ class DatasetService:
             }
             for t in tasks
         ]
-        warnings = [t.error_message for t in tasks if t.status == "failed" and t.error_message]
+        warnings = [
+            t.error_message for t in tasks if t.status == "failed" and t.error_message
+        ]
         errors = warnings
         return {"steps": steps, "warnings": warnings, "errors": errors}

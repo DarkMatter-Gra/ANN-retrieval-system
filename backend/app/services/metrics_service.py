@@ -1,4 +1,3 @@
-
 import statistics
 from datetime import datetime, timedelta, timezone
 
@@ -41,7 +40,9 @@ class MetricsService:
         latencies: list[float] = []
         for t in tasks:
             payload = t.request_payload or {}
-            if isinstance(payload, dict) and isinstance(payload.get("latency_ms"), (int, float)):
+            if isinstance(payload, dict) and isinstance(
+                payload.get("latency_ms"), (int, float)
+            ):
                 latencies.append(float(payload["latency_ms"]))
 
         def percentile(data: list[float], p: float) -> float:
@@ -53,7 +54,9 @@ class MetricsService:
 
         seconds = max(delta.total_seconds(), 1.0)
         index_count = self.db.query(ANNIndex).count()
-        loaded_count = self.db.query(ANNIndex).filter(ANNIndex.is_loaded.is_(True)).count()
+        loaded_count = (
+            self.db.query(ANNIndex).filter(ANNIndex.is_loaded.is_(True)).count()
+        )
 
         return {
             "index_id": index_id,
@@ -62,7 +65,9 @@ class MetricsService:
             "p95": percentile(latencies, 95),
             "p99": percentile(latencies, 99),
             "qps": round(len(tasks) / seconds, 4) if tasks else 0.0,
-            "avg_progress": round(statistics.mean(progresses), 2) if progresses else 0.0,
+            "avg_progress": round(statistics.mean(progresses), 2)
+            if progresses
+            else 0.0,
             "indexes_total": index_count,
             "indexes_loaded": loaded_count,
         }

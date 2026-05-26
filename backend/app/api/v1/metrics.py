@@ -15,4 +15,6 @@ def metrics_search(
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    return success(MetricsService(db).search_metrics(index_id=index_id, time_range=time_range))
+    return success(
+        MetricsService(db).search_metrics(index_id=index_id, time_range=time_range)
+    )

@@ -71,7 +71,9 @@ def build_index_task(self, task_id: str, dataset_id: int, index_id: int):
 
         rows = (
             db.query(CellVector)
-            .filter(CellVector.dataset_id == dataset_id, CellVector.vector_type == "pca")
+            .filter(
+                CellVector.dataset_id == dataset_id, CellVector.vector_type == "pca"
+            )
             .order_by(CellVector.id.asc())
             .all()
         )

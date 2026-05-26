@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -35,7 +34,11 @@ def generate_report_task(self, task_id: str):
         query_id = payload.get("query_id")
         query_snapshot = payload.get("query_snapshot") or {}
 
-        dataset = db.query(ExpressionMetadata).filter(ExpressionMetadata.id == dataset_id).first()
+        dataset = (
+            db.query(ExpressionMetadata)
+            .filter(ExpressionMetadata.id == dataset_id)
+            .first()
+        )
         if not dataset:
             raise ValueError("dataset not found")
 
@@ -95,7 +98,9 @@ def generate_report_task(self, task_id: str):
 
         export_dir = ensure_dir(settings.export_path)
         out_path = export_dir / f"{task_id}.json"
-        out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        out_path.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
         task.result_path = str(out_path)
         task.progress = 100

@@ -8,6 +8,7 @@
 
 如果数据库 / 表还没创建，会自动跑一次 Base.metadata.create_all。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -65,7 +66,9 @@ def main() -> None:
     parser.add_argument("-u", "--username", default="admin")
     parser.add_argument("-p", "--password", default="Admin@123")
     parser.add_argument("-e", "--email", default="admin@example.com")
-    parser.add_argument("--reset", action="store_true", help="reset password if user exists")
+    parser.add_argument(
+        "--reset", action="store_true", help="reset password if user exists"
+    )
     args = parser.parse_args()
 
     ensure_schema()

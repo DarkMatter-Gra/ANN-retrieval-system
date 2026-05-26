@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
-from app.core.exceptions import DatasetNotFoundError, IndexNotFoundError, ParamMissingError, TaskNotFoundError
+from app.core.exceptions import (
+    DatasetNotFoundError,
+    IndexNotFoundError,
+    ParamMissingError,
+    TaskNotFoundError,
+)
 from app.models.ann_index import ANNIndex
 from app.models.dataset import ExpressionMetadata
 from app.models.search_task import SearchTask
@@ -55,7 +60,10 @@ def create_diagnostic_report(
 
     dataset = (
         db.query(ExpressionMetadata)
-        .filter(ExpressionMetadata.id == int(dataset_id), ExpressionMetadata.deleted_flag.is_(False))
+        .filter(
+            ExpressionMetadata.id == int(dataset_id),
+            ExpressionMetadata.deleted_flag.is_(False),
+        )
         .first()
     )
     if not dataset:

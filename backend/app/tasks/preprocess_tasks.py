@@ -13,7 +13,11 @@ def preprocess_dataset_task(self, task_id: str, dataset_id: int, user_id: int):
         run_preprocess(db, task_id, dataset_id)
     except Exception as exc:  # noqa: BLE001
         task = db.query(SearchTask).filter(SearchTask.task_id == task_id).first()
-        dataset = db.query(ExpressionMetadata).filter(ExpressionMetadata.id == dataset_id).first()
+        dataset = (
+            db.query(ExpressionMetadata)
+            .filter(ExpressionMetadata.id == dataset_id)
+            .first()
+        )
         if task:
             task.status = "failed"
             task.error_message = str(exc)

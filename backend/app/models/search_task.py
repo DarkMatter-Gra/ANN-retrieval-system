@@ -8,11 +8,17 @@ class SearchTask(Base, TimestampMixin):
     __tablename__ = "search_tasks"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    task_id: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
-    owner_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
+    task_id: Mapped[str] = mapped_column(
+        String(64), unique=True, index=True, nullable=False
+    )
+    owner_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), index=True, nullable=False
+    )
     task_type: Mapped[str] = mapped_column(String(32), nullable=False)
     dataset_id: Mapped[int] = mapped_column(
-        ForeignKey("expression_metadata.id", ondelete="CASCADE"), index=True, nullable=False
+        ForeignKey("expression_metadata.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
     )
     index_id: Mapped[int | None] = mapped_column(
         ForeignKey("ann_indices.id", ondelete="SET NULL"), nullable=True

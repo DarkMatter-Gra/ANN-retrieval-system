@@ -1,9 +1,13 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db, require_roles
+from app.api.deps import get_db, require_roles
 from app.models.user import User
-from app.schemas.index import CreateIndexRequest, PublishIndexRequest, RollbackIndexRequest
+from app.schemas.index import (
+    CreateIndexRequest,
+    PublishIndexRequest,
+    RollbackIndexRequest,
+)
 from app.services.index_service import IndexService
 from app.utils.response import success
 
@@ -37,7 +41,9 @@ def list_indexes(
     db: Session = Depends(get_db),
     operator: User = Depends(require_roles("admin", "dev")),
 ):
-    return success(IndexService(db).list_indexes(operator, dataset_id, status, page, page_size))
+    return success(
+        IndexService(db).list_indexes(operator, dataset_id, status, page, page_size)
+    )
 
 
 @router.get("/{index_id}")
@@ -75,4 +81,6 @@ def rollback_index(
     db: Session = Depends(get_db),
     operator: User = Depends(require_roles("admin")),
 ):
-    return success(IndexService(db).rollback(index_id, payload.target_version, operator))
+    return success(
+        IndexService(db).rollback(index_id, payload.target_version, operator)
+    )

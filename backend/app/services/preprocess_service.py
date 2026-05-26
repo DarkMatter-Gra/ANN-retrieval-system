@@ -44,7 +44,9 @@ def load_input_dataset(file_path: str, file_format: str, max_cells: int = 30_000
 
 def run_preprocess(db: Session, task_id: str, dataset_id: int) -> None:
     task = db.query(SearchTask).filter(SearchTask.task_id == task_id).first()
-    dataset = db.query(ExpressionMetadata).filter(ExpressionMetadata.id == dataset_id).first()
+    dataset = (
+        db.query(ExpressionMetadata).filter(ExpressionMetadata.id == dataset_id).first()
+    )
     if not task or not dataset:
         raise ValueError("task or dataset not found")
 
@@ -73,8 +75,8 @@ def run_preprocess(db: Session, task_id: str, dataset_id: int) -> None:
 
     # vectors = np.asarray(adata.obsm["X_pca"], dtype=np.float32)
 
-# - 如果 adata.obsm 里已经有 X_pca 直接拿来当 vectors
-# - 如果没有，才重新做归一化、log、HVG、PCA
+    # - 如果 adata.obsm 里已经有 X_pca 直接拿来当 vectors
+    # - 如果没有，才重新做归一化、log、HVG、PCA
     if "X_pca" in adata.obsm:
         vectors = np.asarray(adata.obsm["X_pca"], dtype=np.float32)
     else:
@@ -86,7 +88,6 @@ def run_preprocess(db: Session, task_id: str, dataset_id: int) -> None:
         sc.pp.pca(adata, n_comps=n_comps)
         vectors = np.asarray(adata.obsm["X_pca"], dtype=np.float32)
 
-    
     if "X_umap" not in adata.obsm:
         if "X_pca" in adata.obsm:
             sc.pp.neighbors(adata, use_rep="X_pca")
@@ -143,16 +144,21 @@ def run_preprocess(db: Session, task_id: str, dataset_id: int) -> None:
     #     adata.obsm["X_umap"], columns=["umap_x", "umap_y"], index=adata.obs_names
     # ).to_csv(output_dir / "umap.csv")
     if "X_umap" in adata.obsm:
-        _write_embedding_csv(output_dir / "umap.csv", adata.obs_names, adata.obsm["X_umap"], "umap")
+        _write_embedding_csv(
+            output_dir / "umap.csv", adata.obs_names, adata.obsm["X_umap"], "umap"
+        )
 
     if "X_tsne" in adata.obsm:
-        _write_embedding_csv(output_dir / "tsne.csv", adata.obs_names, adata.obsm["X_tsne"], "tsne")
+        _write_embedding_csv(
+            output_dir / "tsne.csv", adata.obs_names, adata.obsm["X_tsne"], "tsne"
+        )
 
     dataset.preprocess_status = "done"
     task.status = "done"
     task.progress = 100
     task.finished_at = utcnow_iso()
     db.commit()
+
 
 # 数据合法性检查
 def _validate_adata(adata) -> None:
@@ -174,6 +180,7 @@ def _serialize_value(value):
     except AttributeError:
         return str(value)
 
+
 def _collect_embedding_methods(adata) -> list[str]:
     methods = []
     if "X_pca" in adata.obsm:
@@ -184,6 +191,7 @@ def _collect_embedding_methods(adata) -> list[str]:
         methods.append("tsne")
     return methods
 
+
 def _pick_obs_value(row, key: str):
     if key not in row.index:
         return None
@@ -191,6 +199,7 @@ def _pick_obs_value(row, key: str):
     if pd.isna(value):
         return None
     return str(value)
+
 
 # 将二维 embedding 统一导出成csv
 def _write_embedding_csv(file_path: Path, index, matrix, prefix: str) -> None:

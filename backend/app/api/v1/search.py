@@ -25,4 +25,6 @@ def batch_search(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return success(SearchService(db).create_batch_task(current_user, payload.model_dump()))
+    return success(
+        SearchService(db).create_batch_task(current_user, payload.model_dump())
+    )

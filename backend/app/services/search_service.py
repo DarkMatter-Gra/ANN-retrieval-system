@@ -2,8 +2,6 @@ import time
 import uuid
 from pathlib import Path
 
-import faiss
-import hnswlib
 import numpy as np
 
 from app.utils.index_io import load_hnsw, read_faiss
@@ -13,16 +11,13 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.exceptions import (
     ConflictError,
-    DatasetNotFoundError,
     IndexNotFoundError,
     ParamMissingError,
     ResourceForbiddenError,
     ValidationFailed,
 )
 from app.models.ann_index import ANNIndex
-from app.models.cell_metadata import CellMetadata
 from app.models.cell_vector import CellVector
-from app.models.dataset import ExpressionMetadata
 from app.models.search_task import SearchTask
 from app.models.user import User
 from app.services import index_service as index_svc
@@ -55,7 +50,9 @@ class SearchService:
 
         rows = (
             self.db.query(CellVector)
-            .filter(CellVector.dataset_id == dataset_id, CellVector.vector_type == "pca")
+            .filter(
+                CellVector.dataset_id == dataset_id, CellVector.vector_type == "pca"
+            )
             .order_by(CellVector.id.asc())
             .all()
         )
@@ -65,7 +62,9 @@ class SearchService:
         if mode == "exact":
             distances, nn_idx = self._exact_search(rows, query_vector, top_k)
         else:
-            distances, nn_idx = self._approx_search(index_obj, query_vector, top_k, payload)
+            distances, nn_idx = self._approx_search(
+                index_obj, query_vector, top_k, payload
+            )
 
         results = []
         for rank, (idx, dist) in enumerate(zip(nn_idx, distances), start=1):
@@ -78,7 +77,9 @@ class SearchService:
             #     .filter(CellMetadata.dataset_id == dataset_id, CellMetadata.cell_id == row.cell_id)
             #     .first()
             # )
-            meta = DataAccessService(self.db).get_metadata_by_cell_id(dataset_id, row.cell_id)
+            meta = DataAccessService(self.db).get_metadata_by_cell_id(
+                dataset_id, row.cell_id
+            )
             results.append(
                 {
                     "rank": rank,
@@ -140,7 +141,9 @@ class SearchService:
         return {"task_id": task.task_id, "status": task.status}
 
     # ----------------------------- 内部 -----------------------------
-    def _validate_index(self, index_id: int, dataset_id: int, current_user: User) -> ANNIndex:
+    def _validate_index(
+        self, index_id: int, dataset_id: int, current_user: User
+    ) -> ANNIndex:
         index_obj = (
             self.db.query(ANNIndex)
             .filter(ANNIndex.id == index_id, ANNIndex.dataset_id == dataset_id)
@@ -190,7 +193,13 @@ class SearchService:
         nn_idx = np.argsort(dists)[:top_k]
         return dists[nn_idx], nn_idx
 
-    def _approx_search(self, index_obj: ANNIndex, query: np.ndarray, top_k: int, payload: dict | None = None):
+    def _approx_search(
+        self,
+        index_obj: ANNIndex,
+        query: np.ndarray,
+        top_k: int,
+        payload: dict | None = None,
+    ):
         cached = index_svc.get_loaded_index(index_obj.id)
         if index_obj.index_type in {"flat", "ivf_pq"}:
             if cached is None:
@@ -201,7 +210,9 @@ class SearchService:
         if index_obj.index_type == "hnsw":
             if cached is None:
                 space = "l2" if index_obj.metric_type == "l2" else "cosine"
-                cached = load_hnsw(index_obj.file_path, space=space, dim=int(query.shape[1]))
+                cached = load_hnsw(
+                    index_obj.file_path, space=space, dim=int(query.shape[1])
+                )
                 cached.set_ef(int(index_obj.params_json.get("ef", 64)))
                 index_svc.cache_index(index_obj.id, cached)
             ef = (payload or {}).get("ef_search")
@@ -211,8 +222,12 @@ class SearchService:
             return distances[0], nn_idx[0]
         raise ValidationFailed(f"unsupported index type: {index_obj.index_type}")
 
-    def build_highlight_points(self, dataset_id: int, payload: dict, results: list[dict]) -> dict:
-        umap_path = Path(settings.data_path) / "processed" / str(dataset_id) / "umap.csv"
+    def build_highlight_points(
+        self, dataset_id: int, payload: dict, results: list[dict]
+    ) -> dict:
+        umap_path = (
+            Path(settings.data_path) / "processed" / str(dataset_id) / "umap.csv"
+        )
         if not umap_path.exists():
             return {"query": None, "neighbors": []}
         umap = pd.read_csv(umap_path, index_col=0)

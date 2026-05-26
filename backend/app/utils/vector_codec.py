@@ -14,4 +14,6 @@ def decode_vector(blob: bytes, dim: int | None = None) -> np.ndarray:
 
 
 def stack_vectors(blobs: list[bytes]) -> np.ndarray:
-    return np.vstack([np.frombuffer(b, dtype=np.float32) for b in blobs]).astype(np.float32)
+    return np.vstack([np.frombuffer(b, dtype=np.float32) for b in blobs]).astype(
+        np.float32
+    )

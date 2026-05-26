@@ -45,7 +45,9 @@ def upload_complete(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return success(DatasetService(db).complete_upload(current_user.id, payload.upload_id))
+    return success(
+        DatasetService(db).complete_upload(current_user.id, payload.upload_id)
+    )
 
 
 @router.get("")
@@ -56,7 +58,9 @@ def list_datasets(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return success(DatasetService(db).list_datasets(current_user, page, page_size, keyword))
+    return success(
+        DatasetService(db).list_datasets(current_user, page, page_size, keyword)
+    )
 
 
 @router.get("/{dataset_id}")

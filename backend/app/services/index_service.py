@@ -1,9 +1,5 @@
 import uuid
-from pathlib import Path
 
-import faiss
-import hnswlib
-import numpy as np
 
 from app.utils.index_io import load_hnsw, read_faiss
 from sqlalchemy import func
@@ -24,7 +20,6 @@ from app.models.search_task import SearchTask
 from app.models.user import User
 from app.utils.audit import write_audit
 from app.utils.file_store import ensure_dir
-from app.utils.vector_codec import stack_vectors
 
 
 # 进程内索引缓存
@@ -60,7 +55,11 @@ class IndexService:
     ) -> dict:
         from app.tasks.index_tasks import build_index_task
 
-        dataset = self.db.query(ExpressionMetadata).filter(ExpressionMetadata.id == dataset_id).first()
+        dataset = (
+            self.db.query(ExpressionMetadata)
+            .filter(ExpressionMetadata.id == dataset_id)
+            .first()
+        )
         if not dataset or dataset.deleted_flag:
             raise DatasetNotFoundError()
         if owner.role != "admin" and dataset.owner_user_id != owner.id:
@@ -110,7 +109,9 @@ class IndexService:
         self.db.add(task)
         self.db.commit()
 
-        write_audit(owner.id, "create_index", "index", str(index_obj.id), {"type": index_type})
+        write_audit(
+            owner.id, "create_index", "index", str(index_obj.id), {"type": index_type}
+        )
         build_index_task.delay(task.task_id, dataset_id, index_obj.id)
         return {"index_id": index_obj.id, "task_id": task.task_id, "status": "pending"}
 
@@ -184,9 +185,9 @@ class IndexService:
         )
         if not target:
             raise IndexNotFoundError("target version not found")
-        self.db.query(ANNIndex).filter(ANNIndex.dataset_id == current.dataset_id).update(
-            {"publish_status": "approved"}, synchronize_session=False
-        )
+        self.db.query(ANNIndex).filter(
+            ANNIndex.dataset_id == current.dataset_id
+        ).update({"publish_status": "approved"}, synchronize_session=False)
         target.publish_status = "published"
         self.db.commit()
         # 失效缓存以避免使用旧对象
@@ -212,7 +213,10 @@ class IndexService:
         if index_obj.index_type == "hnsw":
             sample = (
                 self.db.query(CellVector)
-                .filter(CellVector.dataset_id == index_obj.dataset_id, CellVector.vector_type == "pca")
+                .filter(
+                    CellVector.dataset_id == index_obj.dataset_id,
+                    CellVector.vector_type == "pca",
+                )
                 .first()
             )
             if not sample:

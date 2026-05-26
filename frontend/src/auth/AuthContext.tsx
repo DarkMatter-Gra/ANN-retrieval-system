@@ -6,10 +6,10 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
-import type { ReactNode } from 'react';
-import { apiCall, DEFAULT_BASE_URL, normalizeBaseUrl } from '../api';
-import type { UserInfo } from '../types';
+} from "react";
+import type { ReactNode } from "react";
+import { apiCall, DEFAULT_BASE_URL, normalizeBaseUrl } from "../api";
+import type { UserInfo } from "../types";
 
 type AuthContextValue = {
   token: string;
@@ -24,9 +24,9 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const KEYS = {
-  token: 'ann.frontend.token',
-  user: 'ann.frontend.user',
-  baseUrl: 'ann.frontend.baseUrl',
+  token: "ann.frontend.token",
+  user: "ann.frontend.user",
+  baseUrl: "ann.frontend.baseUrl",
 } as const;
 
 function readUser(): UserInfo | null {
@@ -39,12 +39,16 @@ function readUser(): UserInfo | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState(() => localStorage.getItem(KEYS.token) || '');
+  const [token, setToken] = useState(
+    () => localStorage.getItem(KEYS.token) || "",
+  );
   const [user, setUser] = useState<UserInfo | null>(readUser);
   const [baseUrl, setBaseUrlState] = useState(() =>
     normalizeBaseUrl(localStorage.getItem(KEYS.baseUrl) || DEFAULT_BASE_URL),
   );
-  const [loading, setLoading] = useState(() => !!localStorage.getItem(KEYS.token));
+  const [loading, setLoading] = useState(
+    () => !!localStorage.getItem(KEYS.token),
+  );
   const initDone = useRef(false);
 
   const setBaseUrl = useCallback((url: string) => {
@@ -54,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    setToken('');
+    setToken("");
     setUser(null);
     localStorage.removeItem(KEYS.token);
     localStorage.removeItem(KEYS.user);
@@ -63,7 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchMe = useCallback(
     async (tok: string, base: string): Promise<UserInfo | null> => {
       try {
-        const resp = await apiCall<UserInfo>({ baseUrl: base, token: tok, path: '/auth/me' });
+        const resp = await apiCall<UserInfo>({
+          baseUrl: base,
+          token: tok,
+          path: "/auth/me",
+        });
         return resp.data;
       } catch {
         return null;
@@ -95,17 +103,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    void fetchMe(savedToken, normalizeBaseUrl(localStorage.getItem(KEYS.baseUrl) || DEFAULT_BASE_URL)).then(
-      (me) => {
-        if (me) {
-          setUser(me);
-          localStorage.setItem(KEYS.user, JSON.stringify(me));
-        } else {
-          logout();
-        }
-        setLoading(false);
-      },
-    );
+    void fetchMe(
+      savedToken,
+      normalizeBaseUrl(localStorage.getItem(KEYS.baseUrl) || DEFAULT_BASE_URL),
+    ).then((me) => {
+      if (me) {
+        setUser(me);
+        localStorage.setItem(KEYS.user, JSON.stringify(me));
+      } else {
+        logout();
+      }
+      setLoading(false);
+    });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const value = useMemo<AuthContextValue>(
@@ -118,6 +127,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be inside AuthProvider');
+  if (!ctx) throw new Error("useAuth must be inside AuthProvider");
   return ctx;
 }

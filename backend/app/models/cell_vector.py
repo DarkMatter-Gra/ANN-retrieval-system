@@ -9,7 +9,9 @@ class CellVector(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     dataset_id: Mapped[int] = mapped_column(
-        ForeignKey("expression_metadata.id", ondelete="CASCADE"), index=True, nullable=False
+        ForeignKey("expression_metadata.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
     )
     cell_id: Mapped[str] = mapped_column(String(128), index=True, nullable=False)
     vector_type: Mapped[str] = mapped_column(String(32), default="pca", nullable=False)

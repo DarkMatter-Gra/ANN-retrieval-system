@@ -19,8 +19,14 @@ class VisualizationService:
     def __init__(self, db: Session):
         self.db = db
 
-    def _ensure_dataset(self, dataset_id: int, current_user: User) -> ExpressionMetadata:
-        dataset = self.db.query(ExpressionMetadata).filter(ExpressionMetadata.id == dataset_id).first()
+    def _ensure_dataset(
+        self, dataset_id: int, current_user: User
+    ) -> ExpressionMetadata:
+        dataset = (
+            self.db.query(ExpressionMetadata)
+            .filter(ExpressionMetadata.id == dataset_id)
+            .first()
+        )
         if not dataset or dataset.deleted_flag:
             raise DatasetNotFoundError()
         if current_user.role != "admin" and dataset.owner_user_id != current_user.id:
@@ -39,7 +45,9 @@ class VisualizationService:
     ) -> dict:
         self._ensure_dataset(dataset_id, current_user)
 
-        file_path = Path(settings.data_path) / "processed" / str(dataset_id) / f"{method}.csv"
+        file_path = (
+            Path(settings.data_path) / "processed" / str(dataset_id) / f"{method}.csv"
+        )
         if not file_path.exists():
             raise NotFoundError("embedding not found")
 

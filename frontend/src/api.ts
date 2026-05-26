@@ -1,4 +1,4 @@
-export const DEFAULT_BASE_URL = 'http://localhost:8000/api/v1';
+export const DEFAULT_BASE_URL = "http://localhost:8001/api/v1";
 
 export type ApiResult<T> = {
   code: number;
@@ -14,21 +14,24 @@ export type ApiError = Error & {
 
 export function normalizeBaseUrl(value: string | null | undefined) {
   const raw = String(value || DEFAULT_BASE_URL).trim();
-  return raw.replace(/\/+$/, '');
+  return raw.replace(/\/+$/, "");
 }
 
 function joinApiUrl(baseUrl: string, path: string) {
   const normalizedBase = normalizeBaseUrl(baseUrl);
-  return new URL(path.replace(/^\/+/, ''), `${normalizedBase}/`).toString();
+  return new URL(path.replace(/^\/+/, ""), `${normalizedBase}/`).toString();
 }
 
 /**
  * 把后端返回的相对路径（如 `/api/v1/files/exports/xxx.json`）
  * 拼接为可直接打开的绝对 URL。若已是 http(s) 绝对地址则原样返回。
  */
-export function absoluteUrl(baseUrl: string, urlOrPath: string | null | undefined) {
-  const v = String(urlOrPath || '').trim();
-  if (!v) return '';
+export function absoluteUrl(
+  baseUrl: string,
+  urlOrPath: string | null | undefined,
+) {
+  const v = String(urlOrPath || "").trim();
+  if (!v) return "";
   if (/^https?:\/\//i.test(v)) return v;
   try {
     const origin = new URL(`${normalizeBaseUrl(baseUrl)}/`).origin;
@@ -38,9 +41,11 @@ export function absoluteUrl(baseUrl: string, urlOrPath: string | null | undefine
   }
 }
 
-export function formatDateTime(value: string | number | Date | null | undefined) {
+export function formatDateTime(
+  value: string | number | Date | null | undefined,
+) {
   if (!value) {
-    return '-';
+    return "-";
   }
 
   const date = new Date(value);
@@ -48,9 +53,9 @@ export function formatDateTime(value: string | number | Date | null | undefined)
     return String(value);
   }
 
-  return new Intl.DateTimeFormat('zh-CN', {
-    dateStyle: 'medium',
-    timeStyle: 'medium',
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "medium",
     hour12: false,
   }).format(date);
 }
@@ -58,10 +63,10 @@ export function formatDateTime(value: string | number | Date | null | undefined)
 export function formatBytes(value: number | null | undefined) {
   const size = Number(value);
   if (!Number.isFinite(size) || size <= 0) {
-    return '0 B';
+    return "0 B";
   }
 
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const units = ["B", "KB", "MB", "GB", "TB"];
   let unitIndex = 0;
   let current = size;
   while (current >= 1024 && unitIndex < units.length - 1) {
@@ -72,7 +77,7 @@ export function formatBytes(value: number | null | undefined) {
 }
 
 export function safeJsonParse<T>(value: unknown, fallback: T): T {
-  const text = String(value ?? '').trim();
+  const text = String(value ?? "").trim();
   if (!text) {
     return fallback;
   }
@@ -80,7 +85,7 @@ export function safeJsonParse<T>(value: unknown, fallback: T): T {
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new Error('JSON 格式不正确');
+    throw new Error("JSON 格式不正确");
   }
 }
 
@@ -89,15 +94,15 @@ export function normalizeVectorInput(value: unknown) {
     return value.map((item) => Number(item));
   }
 
-  const text = String(value ?? '').trim();
+  const text = String(value ?? "").trim();
   if (!text) {
     return [];
   }
 
-  if (text.startsWith('[')) {
+  if (text.startsWith("[")) {
     const parsed = safeJsonParse<unknown>(text, []);
     if (!Array.isArray(parsed)) {
-      throw new Error('向量必须是数组');
+      throw new Error("向量必须是数组");
     }
     return parsed.map((item) => Number(item));
   }
@@ -120,11 +125,20 @@ async function parseResponse<T>(response: Response): Promise<ApiResult<T>> {
       payload = { code: response.status, message: text, data: null as T };
     }
   } else {
-    payload = { code: response.status, message: response.statusText, data: null as T };
+    payload = {
+      code: response.status,
+      message: response.statusText,
+      data: null as T,
+    };
   }
 
-  if (!response.ok || (typeof payload.code === 'number' && payload.code !== 0)) {
-    const error: ApiError = new Error(payload.message || response.statusText || 'request failed');
+  if (
+    !response.ok ||
+    (typeof payload.code === "number" && payload.code !== 0)
+  ) {
+    const error: ApiError = new Error(
+      payload.message || response.statusText || "request failed",
+    );
     error.status = response.status;
     error.code = payload.code ?? response.status;
     error.payload = payload;
@@ -138,7 +152,7 @@ export async function apiCall<T>({
   baseUrl,
   token,
   path,
-  method = 'GET',
+  method = "GET",
   query,
   body,
   formData,
@@ -155,9 +169,9 @@ export async function apiCall<T>({
 }) {
   const url = new URL(joinApiUrl(baseUrl, path));
 
-  if (query && typeof query === 'object') {
+  if (query && typeof query === "object") {
     for (const [key, value] of Object.entries(query)) {
-      if (value === undefined || value === null || value === '') {
+      if (value === undefined || value === null || value === "") {
         continue;
       }
       url.searchParams.set(key, String(value));
@@ -165,16 +179,16 @@ export async function apiCall<T>({
   }
 
   const requestHeaders = new Headers(headers);
-  requestHeaders.set('Accept', 'application/json');
+  requestHeaders.set("Accept", "application/json");
   if (token) {
-    requestHeaders.set('Authorization', `Bearer ${token}`);
+    requestHeaders.set("Authorization", `Bearer ${token}`);
   }
 
   const options: RequestInit = { method, headers: requestHeaders };
   if (formData) {
     options.body = formData;
   } else if (body !== undefined) {
-    requestHeaders.set('Content-Type', 'application/json');
+    requestHeaders.set("Content-Type", "application/json");
     options.body = JSON.stringify(body);
   }
 
@@ -184,21 +198,26 @@ export async function apiCall<T>({
 
 export function statusLabel(status?: string | null) {
   const map: Record<string, string> = {
-    pending: '待处理',
-    running: '运行中',
-    done: '已完成',
-    passed: '已通过',
-    failed: '失败',
-    success: '成功',
-    active: '启用',
-    inactive: '停用',
+    pending: "待处理",
+    running: "运行中",
+    done: "已完成",
+    passed: "已通过",
+    failed: "失败",
+    success: "成功",
+    active: "启用",
+    inactive: "停用",
   };
 
-  return map[status || ''] || status || '-';
+  return map[status || ""] || status || "-";
 }
 
 export function isTerminalStatus(status?: string | null): boolean {
-  return status === 'done' || status === 'failed' || status === 'passed' || status === 'success';
+  return (
+    status === "done" ||
+    status === "failed" ||
+    status === "passed" ||
+    status === "success"
+  );
 }
 
 export function clamp(value: number, min: number, max: number) {
@@ -206,6 +225,15 @@ export function clamp(value: number, min: number, max: number) {
 }
 
 export function paletteForIndex(index: number) {
-  const palette = ['#69e2c3', '#7fa8ff', '#ffbf69', '#ff7272', '#b892ff', '#9be564', '#58d4ff', '#ff8fab'];
+  const palette = [
+    "#69e2c3",
+    "#7fa8ff",
+    "#ffbf69",
+    "#ff7272",
+    "#b892ff",
+    "#9be564",
+    "#58d4ff",
+    "#ff8fab",
+  ];
   return palette[index % palette.length];
 }

@@ -24,7 +24,7 @@ class DataAccessService:
         if not row:
             raise DatasetNotFoundError("cell_id not found")
         return decode_vector(row.vector_blob)
-    
+
     def get_metadata_by_cell_id(self, dataset_id: int, cell_id: str) -> dict:
         row = (
             self.db.query(CellMetadata)
@@ -45,9 +45,11 @@ class DataAccessService:
             "obs_ext": row.obs_ext,
             "qc_flags": row.qc_flags,
         }
-    
+
     # 保证返回的 cell_ids 与 cell_ids 顺序一致
-    def get_metadata_by_cell_ids(self, dataset_id: int, cell_ids: list[str]) -> list[dict]:
+    def get_metadata_by_cell_ids(
+        self, dataset_id: int, cell_ids: list[str]
+    ) -> list[dict]:
         if not cell_ids:
             return []
 

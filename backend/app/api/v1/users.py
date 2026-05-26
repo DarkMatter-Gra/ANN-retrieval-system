@@ -30,7 +30,9 @@ def update_user(
     db: Session = Depends(get_db),
     operator: User = Depends(require_roles("admin")),
 ):
-    return success(UserService(db).update(user_id, payload.model_dump(exclude_none=True), operator))
+    return success(
+        UserService(db).update(user_id, payload.model_dump(exclude_none=True), operator)
+    )
 
 
 @router.post("/{user_id}/reset-password")
@@ -40,7 +42,9 @@ def reset_password(
     db: Session = Depends(get_db),
     operator: User = Depends(get_current_user),
 ):
-    return success(UserService(db).reset_password(user_id, payload.new_password, operator))
+    return success(
+        UserService(db).reset_password(user_id, payload.new_password, operator)
+    )
 
 
 @router.delete("/{user_id}")

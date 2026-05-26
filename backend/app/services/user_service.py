@@ -30,7 +30,9 @@ class UserService:
                 setattr(user, attr, value)
                 updated_fields.append(key)
         self.db.commit()
-        write_audit(operator.id, "update_user", "user", str(user_id), {"fields": updated_fields})
+        write_audit(
+            operator.id, "update_user", "user", str(user_id), {"fields": updated_fields}
+        )
         return {"user_id": user.id, "updated_fields": updated_fields}
 
     def reset_password(self, user_id: int, new_password: str, operator: User) -> dict:

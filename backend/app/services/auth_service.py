@@ -12,7 +12,9 @@ class AuthService:
     def __init__(self, db: Session):
         self.db = db
 
-    def register(self, username: str, email: str, password: str, role: str = "user") -> User:
+    def register(
+        self, username: str, email: str, password: str, role: str = "user"
+    ) -> User:
         if self.db.query(User).filter(User.username == username).first():
             raise ConflictError("username already exists")
         if self.db.query(User).filter(User.email == email).first():
@@ -47,7 +49,9 @@ class AuthService:
         if not verify_password(password, user.password_hash):
             user.failed_login_count += 1
             if user.failed_login_count >= 3:
-                user.lock_until = (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
+                user.lock_until = (
+                    datetime.now(timezone.utc) + timedelta(minutes=15)
+                ).isoformat()
             self.db.commit()
             raise UnauthorizedError("invalid credentials")
 
@@ -55,7 +59,9 @@ class AuthService:
         user.lock_until = None
         self.db.commit()
 
-        expire_at = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+        expire_at = datetime.now(timezone.utc) + timedelta(
+            minutes=settings.access_token_expire_minutes
+        )
         token = create_access_token({"sub": str(user.id), "role": user.role}, expire_at)
         return {
             "access_token": token,
@@ -79,7 +85,15 @@ class AuthService:
     @staticmethod
     def build_menus(role: str) -> list[str]:
         if role == "admin":
-            return ["dataset", "search", "index", "visualization", "metrics", "user", "audit"]
+            return [
+                "dataset",
+                "search",
+                "index",
+                "visualization",
+                "metrics",
+                "user",
+                "audit",
+            ]
         if role == "dev":
             return ["dataset", "search", "index", "visualization", "metrics"]
         if role == "user":

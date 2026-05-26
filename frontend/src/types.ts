@@ -1,4 +1,10 @@
-export type Role = 'admin' | 'dev' | 'user' | 'service' | 'readonly' | 'auditor';
+export type Role =
+  | "admin"
+  | "dev"
+  | "user"
+  | "service"
+  | "readonly"
+  | "auditor";
 
 export type UserInfo = {
   user_id: number;
@@ -28,7 +34,12 @@ export type DatasetDetail = {
 };
 
 export type DatasetLogs = {
-  steps?: { step: string; status: string; duration_ms?: number; message?: string }[];
+  steps?: {
+    step: string;
+    status: string;
+    duration_ms?: number;
+    message?: string;
+  }[];
   warnings?: string[];
   errors?: string[];
 };

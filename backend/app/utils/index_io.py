@@ -6,6 +6,7 @@ characters outside the system code-page (e.g. CJK). Work around this by
 routing I/O through a temp file in %TEMP% (always ASCII) and moving/copying
 as needed.
 """
+
 import contextlib
 import os
 import shutil

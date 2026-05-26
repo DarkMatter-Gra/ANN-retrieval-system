@@ -1,11 +1,17 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { absoluteUrl, apiCall, clamp, safeJsonParse, statusLabel } from '../api';
-import { useAuth } from '../auth/AuthContext';
-import { useToast } from '../lib/useToast';
-import type { TaskSnapshot } from '../types';
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import {
+  absoluteUrl,
+  apiCall,
+  clamp,
+  safeJsonParse,
+  statusLabel,
+} from "../api";
+import { useAuth } from "../auth/AuthContext";
+import { useToast } from "../lib/useToast";
+import type { TaskSnapshot } from "../types";
 
-const DS_KEY = 'ann.frontend.datasetId';
-const IDX_KEY = 'ann.frontend.indexId';
+const DS_KEY = "ann.frontend.datasetId";
+const IDX_KEY = "ann.frontend.indexId";
 
 export function BatchSearchPage() {
   const { token, baseUrl } = useAuth();
@@ -27,7 +33,11 @@ export function BatchSearchPage() {
 
   async function loadTask(taskId: string): Promise<TaskSnapshot | null> {
     try {
-      const resp = await apiCall<TaskSnapshot>({ baseUrl, token, path: `/tasks/${taskId}` });
+      const resp = await apiCall<TaskSnapshot>({
+        baseUrl,
+        token,
+        path: `/tasks/${taskId}`,
+      });
       setTask(resp.data);
       return resp.data;
     } catch (err) {
@@ -37,18 +47,29 @@ export function BatchSearchPage() {
   }
 
   async function pollTask(taskId: string) {
-    if (timerRef.current) { window.clearInterval(timerRef.current); timerRef.current = null; }
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
 
     const refresh = async () => {
       const cur = await loadTask(taskId);
-      if (cur && (cur.status === 'done' || cur.status === 'failed')) {
-        if (timerRef.current) { window.clearInterval(timerRef.current); timerRef.current = null; }
-        showToast(cur.status === 'done' ? '批量任务已完成' : '批量任务失败', cur.status === 'done' ? 'success' : 'error');
+      if (cur && (cur.status === "done" || cur.status === "failed")) {
+        if (timerRef.current) {
+          window.clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        showToast(
+          cur.status === "done" ? "批量任务已完成" : "批量任务失败",
+          cur.status === "done" ? "success" : "error",
+        );
       }
     };
 
     await refresh();
-    timerRef.current = window.setInterval(() => { void refresh(); }, 3000);
+    timerRef.current = window.setInterval(() => {
+      void refresh();
+    }, 3000);
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -58,18 +79,26 @@ export function BatchSearchPage() {
 
     try {
       const resp = await apiCall<{ task_id: string; status: string }>({
-        baseUrl, token, path: '/batch-search', method: 'POST',
+        baseUrl,
+        token,
+        path: "/batch-search",
+        method: "POST",
         body: {
-          dataset_id: Number(form.get('dataset_id')),
-          index_id: Number(form.get('index_id')),
-          queries: safeJsonParse(form.get('queries'), []),
-          top_k: clamp(Number(form.get('top_k') || 10), 1, 1000),
-          mode: String(form.get('mode') || 'ann'),
-          export_format: String(form.get('export_format') || 'json'),
+          dataset_id: Number(form.get("dataset_id")),
+          index_id: Number(form.get("index_id")),
+          queries: safeJsonParse(form.get("queries"), []),
+          top_k: clamp(Number(form.get("top_k") || 10), 1, 1000),
+          mode: String(form.get("mode") || "ann"),
+          export_format: String(form.get("export_format") || "json"),
         },
       });
-      setTask({ task_id: resp.data.task_id, status: resp.data.status, progress: 0, type: 'batch_search' });
-      showToast(`批量任务已提交：${resp.data.task_id}`, 'success');
+      setTask({
+        task_id: resp.data.task_id,
+        status: resp.data.status,
+        progress: 0,
+        type: "batch_search",
+      });
+      showToast(`批量任务已提交：${resp.data.task_id}`, "success");
       void pollTask(resp.data.task_id);
     } catch (err) {
       handleError(err);
@@ -81,26 +110,45 @@ export function BatchSearchPage() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <p className="eyebrow">批量检索</p>
         <h2>批量 ANN 检索任务</h2>
         <p>提交异步批量检索任务，实时轮询任务状态。</p>
       </div>
 
       <div className="detail-grid">
         <article className="panel">
-          <div className="panel-head"><h3>提交批量任务</h3></div>
+          <div className="panel-head">
+            <h3>提交批量任务</h3>
+          </div>
           <form className="form-grid" onSubmit={handleSubmit}>
             <label>
               <span>数据集 ID</span>
-              <input name="dataset_id" type="number" min="1" defaultValue={localStorage.getItem(DS_KEY) || ''} required />
+              <input
+                name="dataset_id"
+                type="number"
+                min="1"
+                defaultValue={localStorage.getItem(DS_KEY) || ""}
+                required
+              />
             </label>
             <label>
               <span>索引 ID</span>
-              <input name="index_id" type="number" min="1" defaultValue={localStorage.getItem(IDX_KEY) || ''} required />
+              <input
+                name="index_id"
+                type="number"
+                min="1"
+                defaultValue={localStorage.getItem(IDX_KEY) || ""}
+                required
+              />
             </label>
             <label>
               <span>Top K</span>
-              <input name="top_k" type="number" min="1" max="1000" defaultValue={10} />
+              <input
+                name="top_k"
+                type="number"
+                min="1"
+                max="1000"
+                defaultValue={10}
+              />
             </label>
             <label>
               <span>模式</span>
@@ -117,61 +165,125 @@ export function BatchSearchPage() {
               </select>
             </label>
             <label className="full">
-              <span>queries JSON（cell_id 应来自 obs_names，例如 AAACCTGAGCAGGTCA-1_2）</span>
+              <span>
+                queries JSON（cell_id 应来自 obs_names，例如
+                AAACCTGAGCAGGTCA-1_2）
+              </span>
               <textarea
                 name="queries"
                 rows={8}
-                defaultValue={'[{"query_type":"cell_id","cell_id":"AAACCTGAGCAGGTCA-1_2"}]'}
+                defaultValue={
+                  '[{"query_type":"cell_id","cell_id":"AAACCTGAGCAGGTCA-1_2"}]'
+                }
                 spellCheck={false}
               />
             </label>
-            <button className="btn btn-primary full" type="submit" disabled={submitting}>
-              {submitting ? '提交中…' : '提交批量任务'}
+            <button
+              className="btn btn-primary full"
+              type="submit"
+              disabled={submitting}
+            >
+              {submitting ? "提交中…" : "提交批量任务"}
             </button>
           </form>
         </article>
 
         <article className="panel">
-          <div className="panel-head"><h3>任务状态</h3></div>
+          <div className="panel-head">
+            <h3>任务状态</h3>
+          </div>
           <div className="summary-box">
             {task ? (
               <>
-                <div><strong>task_id：</strong>{task.task_id ?? '-'}</div>
-                <div><strong>类型：</strong>{task.type ?? '-'}</div>
-                <div><strong>状态：</strong>{statusLabel(task.status)}</div>
-                <div><strong>进度：</strong>{task.progress ?? 0}%</div>
-                {task.error_message && <div><strong>错误：</strong><span style={{ color: 'var(--danger)' }}>{task.error_message}</span></div>}
-                {task.task_id && task.status === 'done' && (
-                  <div className="inline-actions" style={{ marginTop: '0.4rem' }}>
+                <div>
+                  <strong>task_id：</strong>
+                  {task.task_id ?? "-"}
+                </div>
+                <div>
+                  <strong>类型：</strong>
+                  {task.type ?? "-"}
+                </div>
+                <div>
+                  <strong>状态：</strong>
+                  {statusLabel(task.status)}
+                </div>
+                <div>
+                  <strong>进度：</strong>
+                  {task.progress ?? 0}%
+                </div>
+                {task.error_message && (
+                  <div>
+                    <strong>错误：</strong>
+                    <span style={{ color: "var(--danger)" }}>
+                      {task.error_message}
+                    </span>
+                  </div>
+                )}
+                {task.task_id && task.status === "done" && (
+                  <div
+                    className="inline-actions"
+                    style={{ marginTop: "0.4rem" }}
+                  >
                     <strong>下载：</strong>
                     <a
                       className="btn btn-secondary"
-                      href={absoluteUrl(baseUrl, `/api/v1/files/exports/${task.task_id}.json`)}
+                      href={absoluteUrl(
+                        baseUrl,
+                        `/api/v1/files/exports/${task.task_id}.json`,
+                      )}
                       target="_blank"
                       rel="noreferrer"
-                    >下载 JSON</a>
+                    >
+                      下载 JSON
+                    </a>
                     <a
                       className="btn btn-secondary"
-                      href={absoluteUrl(baseUrl, `/api/v1/files/exports/${task.task_id}.csv`)}
+                      href={absoluteUrl(
+                        baseUrl,
+                        `/api/v1/files/exports/${task.task_id}.csv`,
+                      )}
                       target="_blank"
                       rel="noreferrer"
-                    >下载 CSV</a>
+                    >
+                      下载 CSV
+                    </a>
                   </div>
                 )}
               </>
-            ) : <div className="empty-state">提交任务后状态将显示在这里（每 3 秒自动刷新）</div>}
+            ) : (
+              <div className="empty-state">
+                提交任务后状态将显示在这里（每 3 秒自动刷新）
+              </div>
+            )}
           </div>
           {task && (
-            <div style={{ marginTop: '1rem' }}>
-              <div style={{ height: '8px', borderRadius: '4px', background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${task.progress ?? 0}%`, background: 'linear-gradient(90deg, #69e2c3, #7fa8ff)', transition: 'width 0.5s ease', borderRadius: '4px' }} />
+            <div style={{ marginTop: "1rem" }}>
+              <div
+                style={{
+                  height: "8px",
+                  borderRadius: "4px",
+                  background: "rgba(255,255,255,0.1)",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${task.progress ?? 0}%`,
+                    background: "linear-gradient(90deg, #69e2c3, #7fa8ff)",
+                    transition: "width 0.5s ease",
+                    borderRadius: "4px",
+                  }}
+                />
               </div>
             </div>
           )}
         </article>
       </div>
 
-      <div className={`toast ${toast.visible ? 'visible' : ''} ${toast.kind}`}>{toast.text}</div>
+      <div className={`toast ${toast.visible ? "visible" : ""} ${toast.kind}`}>
+        {toast.text}
+      </div>
     </div>
   );
 }
