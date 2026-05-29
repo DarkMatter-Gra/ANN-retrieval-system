@@ -175,13 +175,14 @@ export function BatchSearchPage() {
             </label>
             <label className="full">
               <span>
-                queries JSON（cell_id 应来自 obs_names，例如 cell_a）
+                queries JSON（cell_id 应来自 obs_names，例如
+                AAACCTGAGCAGGTCA-1_2）
               </span>
               <textarea
                 name="queries"
                 rows={8}
                 defaultValue={
-                  '[{"query_type":"cell_id","cell_id":"cell_a"},{"query_type":"cell_id","cell_id":"cell_d","filters":{"organ":"lung"}}]'
+                  '[{"query_type":"cell_id","cell_id":"AAACCTGAGCAGGTCA-1_2"},{"query_type":"cell_id","cell_id":"ATAGACCAGGGTTTCT-1_10"}]'
                 }
                 spellCheck={false}
               />
