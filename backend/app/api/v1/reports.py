@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -27,7 +28,7 @@ def create_diagnostic_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """生成诊断报告（异步）。"""
+    """Create an asynchronous diagnostic report task."""
     from app.tasks.report_tasks import generate_report_task
 
     request_payload = payload.model_dump()
@@ -82,5 +83,16 @@ def create_diagnostic_report(
     db.add(task)
     db.commit()
 
-    generate_report_task.delay(task.task_id)
-    return success({"task_id": task.task_id, "status": task.status})
+    task_result = generate_report_task.delay(task.task_id)
+    db.refresh(task)
+
+    data = {"task_id": task.task_id, "status": task.status}
+    if task.result_path:
+        json_path = Path(task.result_path)
+        data["json_download_url"] = f"/api/v1/files/reports/{json_path.name}"
+        pdf_path = json_path.with_suffix(".pdf")
+        if pdf_path.exists():
+            data["download_url"] = f"/api/v1/files/reports/{pdf_path.name}"
+        if getattr(task_result, "result", None) and isinstance(task_result.result, dict):
+            data.update(task_result.result)
+    return success(data)

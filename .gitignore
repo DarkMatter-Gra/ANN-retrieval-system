@@ -1,116 +1,65 @@
-# =========================================================
-# ANN Retrieval System · .gitignore
-# =========================================================
-
-# ----- 编辑器 / IDE -----
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.history/
-.trae/
-
-# ----- 环境变量 / 密钥 -----
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-
-# =========================================================
-# 后端（Python / FastAPI / Celery / Alembic）
-# =========================================================
-
-# Python 字节码 / 缓存
-**/__pycache__/
+# Python
+__pycache__/
 *.py[cod]
 *$py.class
-*.so
-
-# 虚拟环境
-backend/.venv/
-backend/venv/
-.venv/
-venv/
-env/
-
-# 测试 / 覆盖率
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 .coverage.*
 htmlcov/
-coverage.xml
 
-# 打包产物
-build/
-dist/
-*.egg-info/
-*.egg
+# Virtual environments
+.venv/
+venv/
+env/
+backend/.venv/
+backend/venv/
 
-# 日志
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs and temporary files
 *.log
-backend/logs/
-
-# Alembic 自动产物（如果你需要保留 migrations/versions/*.py 则不要忽略整个目录）
-# 仅忽略每个 versions 文件夹下的 __pycache__（已在上面 **/__pycache__/ 覆盖）
-
-# =========================================================
-# 前端（Node / Vite）
-# =========================================================
-
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
-frontend/coverage/
-frontend/.eslintcache
-frontend/.tsbuildinfo
-frontend/*.tsbuildinfo
-
-# Node 调试 / 包管理器日志
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-.npm/
-.pnpm-store/
-
-# =========================================================
-# 其他临时文件
-# =========================================================
-
 *.tmp
 *.bak
 *.orig
 *.rej
 
-# =========================================================
-# 数据库 / 运行时数据 / 大文件（严禁提交）
-# =========================================================
+# Frontend dependencies and generated output
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/.eslintcache
+frontend/*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# SQLite 数据库
-*.db
-*.db-journal
-*.db-wal
-*.db-shm
-backend/ann_system.db
+# Runtime data generated at the repository root
+/data/
+/indices/
+/exports/
+/reports/
 
-# 运行时数据目录（位于仓库根）
-data/
-indices/
-exports/
-reports/
-
-# 后端运行时也可能在 backend/ 下生成同名目录
+# Backend runtime data
 backend/data/
 backend/indices/
 backend/exports/
 backend/reports/
 backend/control/
+backend/*.db
+backend/*.db-journal
+backend/*.db-wal
+backend/*.db-shm
 
-# 单细胞数据文件（体积大，禁止提交）
+# Large biological data and index artifacts
 *.h5ad
 *.h5
 *.loom
@@ -119,4 +68,3 @@ backend/control/
 *.npz
 *.parquet
 *.faiss
-

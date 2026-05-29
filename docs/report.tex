@@ -1,0 +1,236 @@
+% -*- coding: utf-8 -*-
+%-------------------------designed by zcf--------------
+\documentclass[UTF8,a4paper,10pt]{ctexart}
+\usepackage[left=3.17cm, right=3.17cm, top=2.74cm, bottom=2.74cm]{geometry}
+\usepackage{amsmath}
+\usepackage{graphicx,subfig}
+\usepackage{float}
+\usepackage{cite}
+\usepackage{pgfplots}
+\usepackage{listings}
+\usepackage{xcolor} % 配合颜色包使用，让代码更好看
+\usepackage{mathptmx}
+% 设置 MATLAB 代码的专属样式
+\lstset{
+    language=Matlab,                  % 指定语言为 Matlab
+    basicstyle=\ttfamily\small,       % 设置基础字体大小和打字机字体
+    keywordstyle=\color{blue},        % 关键字显示蓝色
+    commentstyle=\color{green!50!black}, % 注释显示深绿色
+    stringstyle=\color{purple},       % 字符串显示紫色
+    numbers=left,                     % 在左侧显示行号
+    numberstyle=\tiny\color{gray},    % 行号的字体和颜色
+    frame=single,                     % 给代码块加一个单线边框
+    breaklines=true,                  % 允许代码自动折行（防止超出页面边界）
+    showstringspaces=false            % 不显示字符串里的空格符号
+}
+\pgfplotsset{compat=1.18}
+
+\usepackage{caption}
+\usepackage{enumerate}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,automata, shapes.geometric, shapes.multipart, shapes.symbols,calc}
+
+\usepackage{setspace}
+\usepackage{booktabs} %表格
+\usepackage{multirow}
+\usepackage{longtable}
+\newcommand{\tabincell}[2]{\begin{tabular}{@{}#1@{}}#2\end{tabular}}  %表格强制换行
+%-------------------------字体设置--------------
+% \usepackage{times} 
+\newcommand{\yihao}{\fontsize{26pt}{36pt}\selectfont}           % 一号, 1.4 倍行距
+\newcommand{\erhao}{\fontsize{22pt}{28pt}\selectfont}          % 二号, 1.25倍行距
+\newcommand{\xiaoer}{\fontsize{18pt}{18pt}\selectfont}          % 小二, 单倍行距
+\newcommand{\sanhao}{\fontsize{16pt}{24pt}\selectfont}  %三号字
+\newcommand{\xiaosan}{\fontsize{15pt}{22pt}\selectfont}        % 小三, 1.5倍行距
+\newcommand{\sihao}{\fontsize{14pt}{21pt}\selectfont}            % 四号, 1.5 倍行距
+\newcommand{\banxiaosi}{\fontsize{13pt}{19.5pt}\selectfont}    % 半小四, 1.5倍行距
+\newcommand{\xiaosi}{\fontsize{12pt}{18pt}\selectfont}            % 小四, 1.5倍行距
+\newcommand{\dawuhao}{\fontsize{11pt}{11pt}\selectfont}       % 大五号, 单倍行距
+\newcommand{\wuhao}{\fontsize{10.5pt}{15.75pt}\selectfont}    % 五号, 单倍行距
+%-------------------------章节名----------------
+\ctexset{
+  section = {
+    name = {,、},
+    number = \chinese{section}
+  },
+  subsection = {
+    name = {（,）},
+    number = \chinese{subsection}
+  },
+  subsubsection = {
+    name = {,.},
+    number = \arabic{subsubsection}
+  }
+}
+%-------------------------页眉页脚--------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\lhead{\kaishu \leftmark}
+% \chead{}
+\rhead{\kaishu 软件工程}%加粗\bfseries 
+\lfoot{}
+\cfoot{\thepage}
+\rfoot{}
+\renewcommand{\headrulewidth}{0.1pt}  
+\renewcommand{\footrulewidth}{0pt}%去掉横线
+\newcommand{\HRule}{\rule{\linewidth}{0.5mm}}%标题横线
+\newcommand{\HRulegrossa}{\rule{\linewidth}{1.2mm}}
+%-----------------------伪代码------------------
+\usepackage{algorithm}  
+\usepackage{algorithmicx}  
+\usepackage{algpseudocode}  
+\floatname{algorithm}{Algorithm}  
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}  
+\renewcommand{\algorithmicensure}{\textbf{Output:}} 
+\usepackage{lipsum}  
+\makeatletter
+\newenvironment{breakablealgorithm}
+  {% \begin{breakablealgorithm}
+  \begin{center}
+     \refstepcounter{algorithm}% New algorithm
+     \hrule height.8pt depth0pt \kern2pt% \@fs@pre for \@fs@ruled
+     \renewcommand{\caption}[2][\relax]{% Make a new \caption
+      {\raggedright\textbf{\ALG@name~\thealgorithm} ##2\par}%
+      \ifx\relax##1\relax % #1 is \relax
+         \addcontentsline{loa}{algorithm}{\protect\numberline{\thealgorithm}##2}%
+      \else % #1 is not \relax
+         \addcontentsline{loa}{algorithm}{\protect\numberline{\thealgorithm}##1}%
+      \fi
+      \kern2pt\hrule\kern2pt
+     }
+  }{% \end{breakablealgorithm}
+     \kern2pt\hrule\relax% \@fs@post for \@fs@ruled
+  \end{center}
+  }
+\makeatother
+
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{colortbl}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\definecolor{headerblue}{RGB}{30,90,160}
+\definecolor{rowgray}{RGB}{240,243,248}
+\setstretch{1.5}
+%------------------------代码-------------------
+\lstset{ 
+breaklines,%自动换行
+basicstyle=\small,
+escapeinside=``,
+keywordstyle=\color{ blue!70} \bfseries,
+commentstyle=\color{red!50!green!50!blue!50},% 
+stringstyle=\ttfamily,% 
+extendedchars=false,% 
+linewidth=\textwidth,% 
+numbers=left,% 
+numberstyle=\tiny \color{blue!50},% 
+frame=trbl% 
+rulesepcolor= \color{ red!20!green!20!blue!20} 
+}
+%------------超链接----------
+\usepackage[colorlinks,linkcolor=black,anchorcolor=blue]{hyperref}
+%------------------------TODO-------------------
+\usepackage{enumitem,amssymb}
+\newlist{todolist}{itemize}{2}
+\setlist[todolist]{label=$\square$}
+% for check symbol 
+\usepackage{pifont}
+\newcommand{\cmark}{\ding{51}}%
+\newcommand{\xmark}{\ding{55}}%
+\newcommand{\done}{\rlap{$\square$}{\raisebox{2pt}{\large\hspace{1pt}\cmark}}\hspace{-2.5pt}}
+\newcommand{\wontfix}{\rlap{$\square$}{\large\hspace{1pt}\xmark}}
+%------------------------水印-------------------
+\usepackage{eso-pic}
+
+\newcommand{\watermark}[3]{\AddToShipoutPictureBG{
+\parbox[b][\paperheight]{\paperwidth}{
+\vfill%
+\centering%
+\tikz[remember picture, overlay]%
+  \node [rotate = #1, scale = #2] at (current page.center)%
+    {\textcolor{gray!80!cyan!30!magenta!30}{#3}};
+\vfill}}}
+
+
+
+%———————————————————————————————————————————正文———————————————————————————————————————————————
+%----------------------------------------------
+\begin{document}
+\begin{titlepage}
+    \begin{center}
+    \includegraphics[width=0.8\textwidth]{NKU.png}\\[1cm]    
+    \textsc{\Huge \kaishu{\textbf{南\ \ \ \ \ \ 开\ \ \ \ \ \ 大\ \ \ \ \ \ 学}} }\\[0.9cm]
+    \textsc{\huge \kaishu{\textbf{计算机学院、密码与网络空间安全学院}}}\\[0.5cm]
+    \textsc{\Large \textbf{软件工程}}\\[0.8cm]
+    \HRule \\[0.9cm]
+    { \LARGE \bfseries Lab5：软件开发}\\[0.4cm]
+    \HRule \\[2.0cm]
+   \centering
+\zihao{3}
+\begin{tabular}{r l @{\qquad} r l}
+    姓名：& 余辰民 & 学号：& 2311983 \\
+    姓名：& 肖俊涛 & 学号：& 2313226 \\
+    姓名：& 柳昕彤 & 学号：& 2310364 \\
+    姓名：& 熊诚义 & 学号：& 2313310 \\
+    姓名：& 孙俪菲 & 学号：& 2312724 \\
+    \\ 
+    \multicolumn{4}{c}{\textbf{指导老师：刘健}} \\
+\end{tabular}
+
+\vfill
+    {\Large \today}
+    \end{center}
+\end{titlepage}
+
+%----------------------------------------------------------------
+\tableofcontents
+%----------------------------------------------------------------
+\newpage
+\setcounter{page}{1}
+
+
+\section{项目概述}
+
+\subsection{开发背景}
+
+\subsection{项目目标}
+
+\subsection{开发环境}
+
+\subsection{可行性分析}
+
+\subsection{项目计划}
+
+\section{需求分析与系统设计}
+
+\subsection{需求分析}
+
+\subsection{系统设计}
+
+\subsection{详细设计}
+
+\subsection{数据库设计}
+
+\subsection{UI设计}
+
+\section{系统测试}
+
+\subsection{测试环境}
+
+\subsection{功能测试}
+
+\subsection{性能测试}
+
+\section{项目管理}
+
+\subsection{参与人员及分工}
+
+\subsection{项目进展记录}
+
+\subsection{项目管理工具}
+
+\section{用户手册}
+
+
+
+\end{document}

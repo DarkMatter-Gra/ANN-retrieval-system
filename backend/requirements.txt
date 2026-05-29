@@ -14,13 +14,14 @@ aiofiles
 httpx
 orjson
 
-numpy
+numpy>=1.26,<2
 pandas
 anndata
 h5py
 scanpy
 scikit-learn
 scipy
+matplotlib
 
 faiss-cpu
 hnswlib
@@ -29,9 +30,6 @@ celery
 redis
 rq
 pywin32; sys_platform == "win32"
-
-weasyprint
-playwright
 
 pytest
 pytest-asyncio

@@ -26,6 +26,34 @@ uvicorn app.main:app --reload --port 8000
 celery -A app.tasks.celery_app.celery_app worker --loglevel=INFO
 ```
 
+开发联调时如果本机没有 Redis，可以在 `.env` 中设置：
+
+```env
+CELERY_TASK_ALWAYS_EAGER=true
+```
+
+这样 `delay()` 会在当前 API 进程内同步执行，便于先跑通上传、建索引和批量检索链路。接入 Redis worker 时改回 `false`。
+
+后端核心链路烟测：
+
+```bash
+python scripts/smoke_backend.py
+```
+
+该脚本会创建一个小型 `codex_smoke_cells` 数据集、Flat 索引和测试用户，并调用登录、单次检索、过滤检索、批量检索、可视化高亮、指标和诊断报告接口。
+
+自动化测试：
+
+```bash
+python -m pytest
+```
+
+E 模块交付文档见：
+
+- `../docs/E模块交付说明.md`
+- `../docs/E模块测试报告.md`
+- `../docs/ANN引擎实现与升级说明.md`
+
 ## 目录结构
 
 ```

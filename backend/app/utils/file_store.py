@@ -1,4 +1,5 @@
 import shutil
+import os
 from pathlib import Path
 
 
@@ -20,3 +21,15 @@ def merge_chunks(chunk_paths: list[Path], target: Path) -> Path:
         for chunk in sorted(chunk_paths):
             f.write(chunk.read_bytes())
     return target
+
+
+def index_io_path(path: Path | str) -> str:
+    """Return a path string that native ANN libraries can open on Windows."""
+    p = Path(path)
+    try:
+        return str(p.resolve().relative_to(Path.cwd().resolve()))
+    except ValueError:
+        try:
+            return os.path.relpath(str(p.resolve()), str(Path.cwd().resolve()))
+        except Exception:
+            return str(p)

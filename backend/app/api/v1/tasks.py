@@ -35,5 +35,6 @@ def export_task(
     file_path = Path(task.result_path)
     if not file_path.exists():
         raise TaskNotFoundError("export file missing")
-    download_url = f"/api/v1/files/exports/{task_id}.{format}"
-    return success({"download_url": download_url, "format": format})
+    suffix = "jsonl" if format == "json" else "csv"
+    download_url = f"/api/v1/files/exports/{task_id}.{suffix}"
+    return success({"download_url": download_url, "format": format, "filename": f"{task_id}.{suffix}"})

@@ -21,6 +21,8 @@ conf_kwargs = dict(
     accept_content=["json"],
     timezone="Asia/Shanghai",
     enable_utc=False,
+    task_always_eager=settings.celery_task_always_eager,
+    task_eager_propagates=True,
 )
 
 # Support a local filesystem queue so the project can run without Redis.

@@ -38,6 +38,7 @@ def embedding(
     )
 
 
+@router.get("/{query_id}/highlights")
 @router.get("/highlights/{query_id}")
 def highlights(
     query_id: str,

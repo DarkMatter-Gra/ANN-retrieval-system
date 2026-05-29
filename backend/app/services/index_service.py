@@ -1,7 +1,5 @@
 import uuid
 
-
-from app.utils.index_io import load_hnsw, read_faiss
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -18,6 +16,7 @@ from app.models.cell_vector import CellVector
 from app.models.dataset import ExpressionMetadata
 from app.models.search_task import SearchTask
 from app.models.user import User
+from app.services.ann_engine import ANNEngine
 from app.utils.audit import write_audit
 from app.utils.file_store import ensure_dir
 
@@ -55,17 +54,29 @@ class IndexService:
     ) -> dict:
         from app.tasks.index_tasks import build_index_task
 
-        dataset = (
-            self.db.query(ExpressionMetadata)
-            .filter(ExpressionMetadata.id == dataset_id)
-            .first()
-        )
+        dataset = self.db.query(ExpressionMetadata).filter(ExpressionMetadata.id == dataset_id).first()
         if not dataset or dataset.deleted_flag:
             raise DatasetNotFoundError()
         if owner.role != "admin" and dataset.owner_user_id != owner.id:
             raise ResourceForbiddenError()
         if dataset.preprocess_status != "done":
             raise ConflictError("dataset preprocess not done")
+        sample = (
+            self.db.query(CellVector)
+            .filter(CellVector.dataset_id == dataset_id, CellVector.vector_type == "pca")
+            .first()
+        )
+        vector_count = (
+            self.db.query(CellVector)
+            .filter(CellVector.dataset_id == dataset_id, CellVector.vector_type == "pca")
+            .count()
+        )
+        if not sample or vector_count <= 0:
+            raise ConflictError("dataset has no pca vectors")
+        try:
+            ANNEngine.validate_config(index_type, metric, params_json, int(sample.dim), int(vector_count))
+        except ValueError as exc:
+            raise ValidationFailed(str(exc)) from exc
 
         latest_version = (
             self.db.query(func.coalesce(func.max(ANNIndex.version_no), 0))
@@ -109,11 +120,11 @@ class IndexService:
         self.db.add(task)
         self.db.commit()
 
-        write_audit(
-            owner.id, "create_index", "index", str(index_obj.id), {"type": index_type}
-        )
+        write_audit(owner.id, "create_index", "index", str(index_obj.id), {"type": index_type})
         build_index_task.delay(task.task_id, dataset_id, index_obj.id)
-        return {"index_id": index_obj.id, "task_id": task.task_id, "status": "pending"}
+        self.db.refresh(task)
+        self.db.refresh(index_obj)
+        return {"index_id": index_obj.id, "task_id": task.task_id, "status": task.status}
 
     # ----------------------------- 列表/详情 -----------------------------
     def list_indexes(
@@ -185,9 +196,9 @@ class IndexService:
         )
         if not target:
             raise IndexNotFoundError("target version not found")
-        self.db.query(ANNIndex).filter(
-            ANNIndex.dataset_id == current.dataset_id
-        ).update({"publish_status": "approved"}, synchronize_session=False)
+        self.db.query(ANNIndex).filter(ANNIndex.dataset_id == current.dataset_id).update(
+            {"publish_status": "approved"}, synchronize_session=False
+        )
         target.publish_status = "published"
         self.db.commit()
         # 失效缓存以避免使用旧对象
@@ -208,24 +219,12 @@ class IndexService:
         return {"index_id": index_obj.id, "loaded": True, "memory_slot": id(loaded)}
 
     def _load_index_object(self, index_obj: ANNIndex):
-        if index_obj.index_type in {"flat", "ivf_pq"}:
-            return read_faiss(index_obj.file_path)
-        if index_obj.index_type == "hnsw":
-            sample = (
-                self.db.query(CellVector)
-                .filter(
-                    CellVector.dataset_id == index_obj.dataset_id,
-                    CellVector.vector_type == "pca",
-                )
-                .first()
-            )
-            if not sample:
-                raise ValidationFailed("no vectors available")
-            space = "l2" if index_obj.metric_type == "l2" else "cosine"
-            obj = load_hnsw(index_obj.file_path, space=space, dim=sample.dim)
-            obj.set_ef(int(index_obj.params_json.get("ef", 64)))
-            return obj
-        raise ValidationFailed(f"unsupported index type: {index_obj.index_type}")
+        sample = (
+            self.db.query(CellVector)
+            .filter(CellVector.dataset_id == index_obj.dataset_id, CellVector.vector_type == "pca")
+            .first()
+        )
+        return ANNEngine.load(index_obj, dim=sample.dim if sample else None)
 
     # ----------------------------- 内部 -----------------------------
     def _get_or_404(self, index_id: int, current_user: User) -> ANNIndex:
@@ -245,6 +244,7 @@ class IndexService:
             "index_type": r.index_type,
             "metric_type": r.metric_type,
             "params_json": r.params_json,
+            "file_path": r.file_path,
             "version_no": r.version_no,
             "build_status": r.build_status,
             "publish_status": r.publish_status,
