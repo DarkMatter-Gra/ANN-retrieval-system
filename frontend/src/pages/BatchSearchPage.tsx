@@ -1,8 +1,8 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import {
-  absoluteUrl,
   apiCall,
   clamp,
+  downloadFile,
   safeJsonParse,
   statusLabel,
 } from "../api";
@@ -107,6 +107,15 @@ export function BatchSearchPage() {
     }
   }
 
+  async function handleDownload(path: string, filename: string) {
+    try {
+      await downloadFile({ baseUrl, token, urlOrPath: path, filename });
+      showToast("下载已开始", "success");
+    } catch (err) {
+      handleError(err);
+    }
+  }
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -166,14 +175,13 @@ export function BatchSearchPage() {
             </label>
             <label className="full">
               <span>
-                queries JSON（cell_id 应来自 obs_names，例如
-                AAACCTGAGCAGGTCA-1_2）
+                queries JSON（cell_id 应来自 obs_names，例如 cell_a）
               </span>
               <textarea
                 name="queries"
                 rows={8}
                 defaultValue={
-                  '[{"query_type":"cell_id","cell_id":"AAACCTGAGCAGGTCA-1_2"}]'
+                  '[{"query_type":"cell_id","cell_id":"cell_a"},{"query_type":"cell_id","cell_id":"cell_d","filters":{"organ":"lung"}}]'
                 }
                 spellCheck={false}
               />
@@ -225,28 +233,30 @@ export function BatchSearchPage() {
                     style={{ marginTop: "0.4rem" }}
                   >
                     <strong>下载：</strong>
-                    <a
+                    <button
                       className="btn btn-secondary"
-                      href={absoluteUrl(
-                        baseUrl,
-                        `/api/v1/files/exports/${task.task_id}.json`,
-                      )}
-                      target="_blank"
-                      rel="noreferrer"
+                      type="button"
+                      onClick={() =>
+                        void handleDownload(
+                          `/api/v1/files/exports/${task.task_id}.jsonl`,
+                          `${task.task_id}.jsonl`,
+                        )
+                      }
                     >
-                      下载 JSON
-                    </a>
-                    <a
+                      下载 JSONL
+                    </button>
+                    <button
                       className="btn btn-secondary"
-                      href={absoluteUrl(
-                        baseUrl,
-                        `/api/v1/files/exports/${task.task_id}.csv`,
-                      )}
-                      target="_blank"
-                      rel="noreferrer"
+                      type="button"
+                      onClick={() =>
+                        void handleDownload(
+                          `/api/v1/files/exports/${task.task_id}.csv`,
+                          `${task.task_id}.csv`,
+                        )
+                      }
                     >
                       下载 CSV
-                    </a>
+                    </button>
                   </div>
                 )}
               </>

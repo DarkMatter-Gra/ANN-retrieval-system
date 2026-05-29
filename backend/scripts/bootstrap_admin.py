@@ -76,7 +76,7 @@ def main() -> None:
     print(msg)
     print(f"  username: {args.username}")
     print(f"  password: {args.password}")
-    print("login at: http://localhost:5173/login")
+    print("login at: http://localhost:4173/login")
 
 
 if __name__ == "__main__":

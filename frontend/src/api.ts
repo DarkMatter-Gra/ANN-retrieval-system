@@ -1,4 +1,4 @@
-export const DEFAULT_BASE_URL = "http://localhost:8001/api/v1";
+export const DEFAULT_BASE_URL = "http://localhost:8000/api/v1";
 
 export type ApiResult<T> = {
   code: number;
@@ -39,6 +39,38 @@ export function absoluteUrl(
   } catch {
     return v;
   }
+}
+
+export async function downloadFile({
+  baseUrl,
+  token,
+  urlOrPath,
+  filename,
+}: {
+  baseUrl: string;
+  token?: string;
+  urlOrPath: string;
+  filename?: string;
+}) {
+  const url = absoluteUrl(baseUrl, urlOrPath);
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || response.statusText || "download failed");
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename || urlOrPath.split("/").pop() || "download";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);
 }
 
 export function formatDateTime(

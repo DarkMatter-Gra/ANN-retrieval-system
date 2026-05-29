@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ResourceForbiddenError, TaskNotFoundError
@@ -40,7 +42,7 @@ class TaskService:
 
     @staticmethod
     def serialize(task: SearchTask) -> dict:
-        return {
+        data = {
             "task_id": task.task_id,
             "type": task.task_type,
             "progress": task.progress,
@@ -50,3 +52,12 @@ class TaskService:
             "started_at": task.started_at,
             "finished_at": task.finished_at,
         }
+        if task.result_path:
+            path = Path(task.result_path)
+            if task.task_type == "diagnostic_report":
+                data["json_download_url"] = f"/api/v1/files/reports/{path.name}"
+                data["download_url"] = f"/api/v1/files/reports/{path.with_suffix('.pdf').name}"
+                data["result_url"] = data["json_download_url"]
+            elif task.task_type == "batch_search":
+                data["result_url"] = f"/api/v1/files/exports/{path.name}"
+        return data

@@ -32,6 +32,31 @@ def _serialize_csv(rows: list[dict], target: Path) -> None:
             writer.writerow(row)
 
 
+def _normalize_query(query: dict) -> dict:
+    if not isinstance(query, dict):
+        raise ValueError("each query must be an object")
+
+    normalized = dict(query)
+    query_type = normalized.get("query_type")
+    if not query_type:
+        if normalized.get("vector") is not None:
+            query_type = "vector"
+        elif normalized.get("cell_id"):
+            query_type = "cell_id"
+        else:
+            raise ValueError("each query requires query_type with cell_id or vector")
+        normalized["query_type"] = query_type
+
+    if query_type == "cell_id" and not normalized.get("cell_id"):
+        raise ValueError("cell_id query requires cell_id")
+    if query_type == "vector" and normalized.get("vector") is None:
+        raise ValueError("vector query requires vector")
+    if query_type not in {"cell_id", "vector"}:
+        raise ValueError("query_type must be cell_id or vector")
+
+    return normalized
+
+
 @celery_app.task(bind=True, name="batch_search_task")
 def batch_search_task(self, task_id: str):
     db: Session = SessionLocal()
@@ -55,6 +80,7 @@ def batch_search_task(self, task_id: str):
 
         flat_rows: list[dict] = []
         for idx, query in enumerate(queries, start=1):
+            query = _normalize_query(query)
             single_payload = {
                 "dataset_id": payload["dataset_id"],
                 "index_id": payload["index_id"],

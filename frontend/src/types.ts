@@ -83,6 +83,8 @@ export type TaskSnapshot = {
   progress?: number;
   status?: string;
   result_url?: string;
+  download_url?: string;
+  json_download_url?: string;
   error_message?: string;
   started_at?: string;
   finished_at?: string;

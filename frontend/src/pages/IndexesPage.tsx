@@ -205,8 +205,6 @@ export function IndexesPage() {
               <option value="running">running</option>
               <option value="done">done</option>
               <option value="failed">failed</option>
-              <option value="published">published</option>
-              <option value="rolled_back">rolled_back</option>
             </select>
           </label>
           <label className="toolbar-field small">

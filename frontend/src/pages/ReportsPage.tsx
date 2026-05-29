@@ -1,9 +1,15 @@
-import { type FormEvent, useState } from "react";
-import { apiCall } from "../api";
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import { apiCall, downloadFile } from "../api";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../lib/useToast";
+import type { TaskSnapshot } from "../types";
 
-type ReportResult = Record<string, unknown>;
+type ReportResult = Record<string, unknown> & {
+  task_id?: string;
+  status?: string;
+  download_url?: string;
+  json_download_url?: string;
+};
 
 export function ReportsPage() {
   const { token, baseUrl } = useAuth();
@@ -11,6 +17,16 @@ export function ReportsPage() {
 
   const [report, setReport] = useState<ReportResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -33,11 +49,80 @@ export function ReportsPage() {
         },
       });
       setReport(resp.data);
+      if (resp.data.task_id && resp.data.status !== "done") {
+        void pollReportTask(String(resp.data.task_id));
+      }
       showToast("诊断报告任务已提交，可在任务监控页查看进度", "success");
     } catch (err) {
       handleError(err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadReportTask(taskId: string): Promise<TaskSnapshot | null> {
+    try {
+      const resp = await apiCall<TaskSnapshot>({
+        baseUrl,
+        token,
+        path: `/tasks/${taskId}`,
+      });
+      setReport((prev) => ({
+        ...(prev ?? {}),
+        task_id: taskId,
+        status: resp.data.status,
+        progress: resp.data.progress,
+        download_url: resp.data.download_url,
+        json_download_url: resp.data.json_download_url,
+        result_url: resp.data.result_url,
+        error_message: resp.data.error_message,
+      }));
+      return resp.data;
+    } catch (err) {
+      handleError(err);
+      return null;
+    }
+  }
+
+  async function pollReportTask(taskId: string) {
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    const refresh = async () => {
+      const cur = await loadReportTask(taskId);
+      if (cur && (cur.status === "done" || cur.status === "failed")) {
+        if (timerRef.current) {
+          window.clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        showToast(
+          cur.status === "done" ? "诊断报告已生成" : "诊断报告生成失败",
+          cur.status === "done" ? "success" : "error",
+        );
+      }
+    };
+
+    await refresh();
+    timerRef.current = window.setInterval(() => {
+      void refresh();
+    }, 3000);
+  }
+
+  async function handleDownload(kind: "pdf" | "json") {
+    if (!report) return;
+    const key = kind === "pdf" ? "download_url" : "json_download_url";
+    const url = String(report[key] || "");
+    if (!url) {
+      showToast("当前报告没有可下载链接", "error");
+      return;
+    }
+    try {
+      await downloadFile({ baseUrl, token, urlOrPath: url });
+      showToast("下载已开始", "success");
+    } catch (err) {
+      handleError(err);
     }
   }
 
@@ -120,16 +205,36 @@ export function ReportsPage() {
           </div>
           <div className="detail-box" style={{ minHeight: "300px" }}>
             {report ? (
-              <pre
-                style={{
-                  whiteSpace: "pre-wrap",
-                  margin: 0,
-                  fontSize: "0.85rem",
-                  lineHeight: 1.6,
-                }}
-              >
-                {JSON.stringify(report, null, 2)}
-              </pre>
+              <>
+                <div className="inline-actions" style={{ marginBottom: "1rem" }}>
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    disabled={!report.download_url}
+                    onClick={() => void handleDownload("pdf")}
+                  >
+                    下载 PDF
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    disabled={!report.json_download_url}
+                    onClick={() => void handleDownload("json")}
+                  >
+                    下载 JSON
+                  </button>
+                </div>
+                <pre
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    margin: 0,
+                    fontSize: "0.85rem",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {JSON.stringify(report, null, 2)}
+                </pre>
+              </>
             ) : (
               <span className="empty-state">提交表单后报告将显示在这里</span>
             )}

@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { absoluteUrl, apiCall, formatDateTime, statusLabel } from "../api";
+import {
+  absoluteUrl,
+  apiCall,
+  downloadFile,
+  formatDateTime,
+  statusLabel,
+} from "../api";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../lib/useToast";
 import type { TaskSnapshot } from "../types";
@@ -90,9 +96,12 @@ export function TasksPage() {
         path: `/tasks/${taskId}/export`,
         query: { format: exportFormat },
       });
-      const url = absoluteUrl(baseUrl, resp.data.download_url);
-      window.open(url, "_blank", "noreferrer");
-      showToast("已获取导出链接", "success");
+      await downloadFile({
+        baseUrl,
+        token,
+        urlOrPath: resp.data.download_url,
+      });
+      showToast("下载已开始", "success");
     } catch (err) {
       handleError(err);
     }
