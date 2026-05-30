@@ -164,10 +164,13 @@ def _write_pdf_report(report: dict, pdf_path: Path) -> None:
     from matplotlib.backends.backend_pdf import PdfPages
 
     font_path = _pick_font_path()
+    payload = ((report.get("query") or {}).get("payload") or {})
     with PdfPages(pdf_path) as pdf:
         _add_summary_page(pdf, plt, report, font_path)
-        _add_results_page(pdf, plt, report, font_path)
-        _add_embedding_page(pdf, plt, report, font_path)
+        if payload.get("results"):
+            _add_results_page(pdf, plt, report, font_path)
+        if (payload.get("highlight_points") or {}).get("neighbors"):
+            _add_embedding_page(pdf, plt, report, font_path)
         _add_index_page(pdf, plt, report, font_path)
 
 

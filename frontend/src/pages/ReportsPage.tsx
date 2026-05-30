@@ -11,6 +11,10 @@ type ReportResult = Record<string, unknown> & {
   json_download_url?: string;
 };
 
+const DS_KEY = "ann.frontend.datasetId";
+const IDX_KEY = "ann.frontend.indexId";
+const QUERY_KEY = "ann.frontend.queryId";
+
 export function ReportsPage() {
   const { token, baseUrl } = useAuth();
   const { toast, showToast, handleError } = useToast();
@@ -34,6 +38,7 @@ export function ReportsPage() {
     const form = new FormData(e.currentTarget);
     const datasetId = Number(form.get("dataset_id"));
     const indexId = Number(form.get("index_id"));
+    const queryId = String(form.get("query_id") || "").trim();
 
     try {
       const resp = await apiCall<ReportResult>({
@@ -44,8 +49,10 @@ export function ReportsPage() {
         body: {
           dataset_id: datasetId || undefined,
           index_id: indexId || undefined,
+          query_id: queryId || undefined,
           include_qc: form.get("include_qc") === "on",
           include_performance: form.get("include_performance") === "on",
+          include_umap_snapshot: form.get("include_umap_snapshot") === "on",
         },
       });
       setReport(resp.data);
@@ -145,6 +152,7 @@ export function ReportsPage() {
                 name="dataset_id"
                 type="number"
                 min="1"
+                defaultValue={localStorage.getItem(DS_KEY) || ""}
                 placeholder="留空则全局诊断"
               />
             </label>
@@ -154,7 +162,17 @@ export function ReportsPage() {
                 name="index_id"
                 type="number"
                 min="1"
+                defaultValue={localStorage.getItem(IDX_KEY) || ""}
                 placeholder="留空则跳过索引"
+              />
+            </label>
+            <label className="full">
+              <span>检索 query_id（可选）</span>
+              <input
+                name="query_id"
+                type="text"
+                defaultValue={localStorage.getItem(QUERY_KEY) || ""}
+                placeholder="先在向量检索页执行一次检索，会自动带入最近 query_id"
               />
             </label>
             <label
@@ -188,6 +206,22 @@ export function ReportsPage() {
                 style={{ width: "auto" }}
               />
               <span>包含性能报告</span>
+            </label>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.6rem",
+                gridColumn: "1 / -1",
+              }}
+            >
+              <input
+                name="include_umap_snapshot"
+                type="checkbox"
+                defaultChecked
+                style={{ width: "auto" }}
+              />
+              <span>包含检索高亮快照</span>
             </label>
             <button
               className="btn btn-primary full"
