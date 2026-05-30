@@ -97,4 +97,5 @@ export type EmbeddingResponse = {
   total?: number;
   legend?: string[];
   method?: string;
+  color_fields?: string[];
 };

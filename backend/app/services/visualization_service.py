@@ -15,6 +15,8 @@ from app.models.search_task import SearchTask
 from app.models.user import User
 from app.services.search_service import SearchService
 
+COLOR_FIELDS = ("cell_type", "organ", "sample_id")
+
 
 class VisualizationService:
     def __init__(self, db: Session):
@@ -70,19 +72,32 @@ class VisualizationService:
         chunk = df.iloc[start:end].copy()
         chunk["cell_id"] = chunk.index
 
-        legend: list = []
-        if color_by in {"cell_type", "organ", "sample_id"}:
-            metas = (
-                self.db.query(CellMetadata)
-                .filter(CellMetadata.dataset_id == dataset_id)
-                .all()
+        metas = (
+            self.db.query(CellMetadata)
+            .filter(CellMetadata.dataset_id == dataset_id)
+            .all()
+        )
+        meta_map = {
+            m.cell_id: {field: getattr(m, field) for field in COLOR_FIELDS}
+            for m in metas
+        }
+        for field in COLOR_FIELDS:
+            chunk[field] = chunk["cell_id"].map(
+                lambda cell_id, key=field: (meta_map.get(cell_id) or {}).get(key)
             )
-            meta_map = {m.cell_id: getattr(m, color_by) for m in metas}
-            chunk[color_by] = chunk["cell_id"].map(meta_map)
+
+        legend: list = []
+        if color_by in COLOR_FIELDS:
             legend = sorted({v for v in chunk[color_by].dropna().unique().tolist()})
 
         points = chunk.to_dict(orient="records")
-        return {"points": points, "total": total, "legend": legend, "method": method}
+        return {
+            "points": points,
+            "total": total,
+            "legend": legend,
+            "method": method,
+            "color_fields": list(COLOR_FIELDS),
+        }
 
     def get_highlights(self, query_id: str, current_user: User) -> dict:
         snapshot = SearchService.get_query_snapshot(query_id)

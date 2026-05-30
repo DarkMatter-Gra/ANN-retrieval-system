@@ -5,6 +5,7 @@ import { useToast } from "../lib/useToast";
 import type { EmbeddingPoint, EmbeddingResponse } from "../types";
 
 const DS_KEY = "ann.frontend.datasetId";
+const DEFAULT_COLOR_FIELDS = ["cell_type", "organ", "sample_id"];
 
 function computeView(embedding: EmbeddingResponse, colorBy: string) {
   const points = embedding.points ?? [];
@@ -85,10 +86,11 @@ export function VisualizationPage() {
     [embedding, colorBy],
   );
 
-  // 根据返回数据动态提取可作为 colorBy 的字段（非 cell_id、非数值的可枚举属性）
+  // 优先使用后端声明的涂色字段；兼容旧响应时再从点位字段推断。
   const colorByOptions = useMemo(() => {
+    if (embedding?.color_fields?.length) return embedding.color_fields;
     const sample = embedding?.points?.[0];
-    if (!sample) return [];
+    if (!sample) return DEFAULT_COLOR_FIELDS;
     return Object.keys(sample).filter(
       (k) => k !== "cell_id" && typeof sample[k] !== "number",
     );
@@ -135,13 +137,7 @@ export function VisualizationPage() {
                     {k}
                   </option>
                 ))
-              ) : (
-                <>
-                  <option value="cell_type">cell_type</option>
-                  <option value="organ">organ</option>
-                  <option value="sample_id">sample_id</option>
-                </>
-              )}
+              ) : null}
             </select>
           </label>
           <label className="toolbar-field small">
