@@ -74,6 +74,13 @@ export function MetricsPage() {
     loadDashboard();
   }, []);
 
+  const qpsMax = dashboardData
+    ? Math.max(...dashboardData.qps_trend, 1)
+    : 1;
+  const latencyMax = dashboardData
+    ? Math.max(...dashboardData.latency_trend, 1)
+    : 1;
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -219,12 +226,12 @@ export function MetricsPage() {
                         style={{
                           width: "100%",
                           background: "#4CAF50",
-                          height: `${(val / Math.max(...dashboardData.qps_trend)) * 100}%`,
+                          height: `${(val / qpsMax) * 100}%`,
                         }}
                         title={`QPS: ${val}`}
                       ></div>
                       <span style={{ fontSize: "0.7em", marginTop: "4px" }}>
-                        {dashboardData.timestamps[i]}
+                        {dashboardData.timestamps[i] ?? "-"}
                       </span>
                     </div>
                   ))}
@@ -261,12 +268,12 @@ export function MetricsPage() {
                         style={{
                           width: "100%",
                           background: "#F44336",
-                          height: `${(val / Math.max(...dashboardData.latency_trend)) * 100}%`,
+                          height: `${(val / latencyMax) * 100}%`,
                         }}
                         title={`Latency: ${val}ms`}
                       ></div>
                       <span style={{ fontSize: "0.7em", marginTop: "4px" }}>
-                        {dashboardData.timestamps[i]}
+                        {dashboardData.timestamps[i] ?? "-"}
                       </span>
                     </div>
                   ))}

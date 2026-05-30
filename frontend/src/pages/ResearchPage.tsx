@@ -96,7 +96,7 @@ export function ResearchPage() {
               onClick={handleAutoTune}
               disabled={tuningLoading}
             >
-              {tuningLoading ? "调优中..." : "开始自动调优"}
+              {tuningLoading ? "调优中…" : "开始自动调优"}
             </button>
             {tuningResult && (
               <div className="result-card" style={{ marginTop: "1rem" }}>
@@ -127,7 +127,7 @@ export function ResearchPage() {
               onClick={handleBenchmark}
               disabled={benchmarkLoading}
             >
-              {benchmarkLoading ? "测试中..." : "运行基准测试"}
+              {benchmarkLoading ? "测试中…" : "运行基准测试"}
             </button>
             {benchmarkResult && (
               <div className="result-card" style={{ marginTop: "1rem" }}>

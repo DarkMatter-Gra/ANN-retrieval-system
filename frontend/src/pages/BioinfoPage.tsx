@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { apiCall } from "../api";
+import { absoluteUrl, apiCall } from "../api";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../lib/useToast";
 
@@ -31,9 +31,9 @@ export function BioinfoPage() {
 
   return (
     <div className="page-container">
-      {toast.visible && (
-        <div className={`toast toast-${toast.kind}`}>{toast.text}</div>
-      )}
+      <div className={`toast ${toast.visible ? "visible" : ""} ${toast.kind}`}>
+        {toast.text}
+      </div>
       <div className="page-header">
         <h2>API 接入工作台</h2>
         <p>
@@ -128,7 +128,7 @@ export function BioinfoPage() {
             onClick={fetchApiDocs}
             disabled={loading}
           >
-            {loading ? "加载中..." : "加载最新 API 文档与 SDK"}
+            {loading ? "加载中…" : "加载最新 API 文档与 SDK"}
           </button>
           {apiDocs && (
             <div
@@ -143,7 +143,11 @@ export function BioinfoPage() {
               <h4>当前版本: {apiDocs.version}</h4>
               <p>
                 在线文档:{" "}
-                <a href={apiDocs.docs_url} target="_blank" rel="noreferrer">
+                <a
+                  href={absoluteUrl(baseUrl, apiDocs.docs_url)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   {apiDocs.docs_url}
                 </a>
               </p>
@@ -162,7 +166,7 @@ export function BioinfoPage() {
                 <li>
                   Python SDK:{" "}
                   <a
-                    href={apiDocs.sdk_downloads.python}
+                    href={absoluteUrl(baseUrl, apiDocs.sdk_downloads.python)}
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -172,7 +176,7 @@ export function BioinfoPage() {
                 <li>
                   JavaScript SDK:{" "}
                   <a
-                    href={apiDocs.sdk_downloads.javascript}
+                    href={absoluteUrl(baseUrl, apiDocs.sdk_downloads.javascript)}
                     target="_blank"
                     rel="noreferrer"
                   >

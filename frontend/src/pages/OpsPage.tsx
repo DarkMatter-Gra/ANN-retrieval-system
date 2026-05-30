@@ -441,7 +441,7 @@ export function OpsPage() {
           <div style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem" }}>
             <input
               type="text"
-              placeholder="输入关键词..."
+              placeholder="输入关键词…"
               value={logKeyword}
               onChange={(e) => setLogKeyword(e.target.value)}
               style={{ flex: 1, padding: "0.4rem" }}

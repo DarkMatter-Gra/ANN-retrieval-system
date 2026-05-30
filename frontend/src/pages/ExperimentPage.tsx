@@ -52,9 +52,9 @@ export function ExperimentPage() {
 
   return (
     <div className="page-container">
-      {toast.visible && (
-        <div className={`toast toast-${toast.kind}`}>{toast.text}</div>
-      )}
+      <div className={`toast ${toast.visible ? "visible" : ""} ${toast.kind}`}>
+        {toast.text}
+      </div>
       <div className="page-header">
         <h2>实验分析工作台</h2>
         <p>单细胞数据上传、质控监控、预处理追踪与表型检索分析。</p>
@@ -95,7 +95,7 @@ export function ExperimentPage() {
               onClick={handleFetchProgress}
               disabled={loadingProgress}
             >
-              {loadingProgress ? "获取中..." : "刷新进度"}
+              {loadingProgress ? "获取中…" : "刷新进度"}
             </button>
             {progressData && (
               <div
@@ -146,7 +146,7 @@ export function ExperimentPage() {
               onClick={handleFetchDeg}
               disabled={loadingDeg}
             >
-              {loadingDeg ? "分析中..." : "运行 DEG 分析"}
+              {loadingDeg ? "分析中…" : "运行 DEG 分析"}
             </button>
             {degData && (
               <div

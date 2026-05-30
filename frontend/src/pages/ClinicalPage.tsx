@@ -52,9 +52,9 @@ export function ClinicalPage() {
 
   return (
     <div className="page-container">
-      {toast.visible && (
-        <div className={`toast toast-${toast.kind}`}>{toast.text}</div>
-      )}
+      <div className={`toast ${toast.visible ? "visible" : ""} ${toast.kind}`}>
+        {toast.text}
+      </div>
       <div className="page-header">
         <h2>临床诊断工作台</h2>
         <p>基于单细胞基因组数据的近似最近邻检索辅助临床表型分析与诊断参考。</p>
@@ -95,7 +95,7 @@ export function ClinicalPage() {
               onClick={handleInference}
               disabled={loadingInference}
             >
-              {loadingInference ? "推断中..." : "运行表型推断"}
+              {loadingInference ? "推断中…" : "运行表型推断"}
             </button>
             {inferenceData && (
               <div
@@ -135,7 +135,7 @@ export function ClinicalPage() {
               onClick={handleComparison}
               disabled={loadingComparison}
             >
-              {loadingComparison ? "对比中..." : "加载对比案例"}
+              {loadingComparison ? "对比中…" : "加载对比案例"}
             </button>
             {comparisonData && (
               <div

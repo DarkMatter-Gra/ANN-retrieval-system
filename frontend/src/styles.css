@@ -85,6 +85,14 @@ a {
   color: inherit;
   text-decoration: none;
 }
+a:focus-visible,
+button:focus-visible,
+.btn:focus-visible,
+.nav-leaf:focus-visible,
+.nav-group-header:focus-visible {
+  outline: 3px solid rgba(45, 191, 160, 0.28);
+  outline-offset: 2px;
+}
 button,
 input,
 select,
@@ -826,6 +834,9 @@ textarea {
 }
 .toast.success {
   border-left-color: var(--success);
+}
+.toast.info {
+  border-left-color: var(--accent-2);
 }
 
 /* —— 多页布局 —— */

@@ -123,7 +123,7 @@ export function DatabasePage() {
               onClick={handleLoadVersions}
               disabled={versionsLoading}
             >
-              {versionsLoading ? "加载中..." : "加载版本历史"}
+              {versionsLoading ? "加载中…" : "加载版本历史"}
             </button>
             {versionsResult && (
               <div className="result-card" style={{ marginTop: "1rem" }}>
@@ -154,7 +154,7 @@ export function DatabasePage() {
               onClick={handleLoadLineage}
               disabled={lineageLoading}
             >
-              {lineageLoading ? "加载中..." : "加载沿袭图"}
+              {lineageLoading ? "加载中…" : "加载沿袭图"}
             </button>
             {lineageResult && (
               <div className="result-card" style={{ marginTop: "1rem" }}>
@@ -185,7 +185,7 @@ export function DatabasePage() {
               onClick={handleLoadTenant}
               disabled={tenantLoading}
             >
-              {tenantLoading ? "加载中..." : "查看租户策略"}
+              {tenantLoading ? "加载中…" : "查看租户策略"}
             </button>
             {tenantResult && (
               <div className="result-card" style={{ marginTop: "1rem" }}>
@@ -216,7 +216,7 @@ export function DatabasePage() {
               onClick={handlePublicSync}
               disabled={syncLoading}
             >
-              {syncLoading ? "启动中..." : "启动同步任务"}
+              {syncLoading ? "启动中…" : "启动同步任务"}
             </button>
             {syncResult && (
               <div className="result-card" style={{ marginTop: "1rem" }}>

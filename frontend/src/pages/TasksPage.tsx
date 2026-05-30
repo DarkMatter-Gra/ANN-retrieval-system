@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  absoluteUrl,
   apiCall,
   downloadFile,
   formatDateTime,
@@ -107,6 +106,20 @@ export function TasksPage() {
     }
   }
 
+  async function handleDownloadResult() {
+    if (!task?.result_url) return;
+    try {
+      await downloadFile({
+        baseUrl,
+        token,
+        urlOrPath: task.result_url,
+      });
+      showToast("下载已开始", "success");
+    } catch (err) {
+      handleError(err);
+    }
+  }
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -174,14 +187,17 @@ export function TasksPage() {
               {task.result_url && (
                 <div>
                   <strong>结果 URL：</strong>
-                  <a
-                    href={absoluteUrl(baseUrl, task.result_url)}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: "var(--accent)" }}
-                  >
+                  <span style={{ color: "var(--accent)" }}>
                     {task.result_url}
-                  </a>
+                  </span>
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    style={{ marginLeft: "0.6rem", padding: "0.42rem 0.7rem" }}
+                    onClick={() => void handleDownloadResult()}
+                  >
+                    下载结果
+                  </button>
                 </div>
               )}
               {task.error_message && (
