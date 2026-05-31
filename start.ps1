@@ -58,7 +58,7 @@ function Invoke-External {
 
   if ([System.IO.Path]::GetExtension($resolvedPath).Equals('.ps1', [System.StringComparison]::OrdinalIgnoreCase)) {
     $processPath = 'powershell.exe'
-    $processArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $resolvedPath) + $Arguments
+    $processArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$resolvedPath`"") + $Arguments
   }
 
   $process = Start-Process -FilePath $processPath -ArgumentList $processArguments -WorkingDirectory $WorkingDirectory -NoNewWindow -Wait -PassThru

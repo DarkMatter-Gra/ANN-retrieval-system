@@ -22,6 +22,7 @@ scanpy
 scikit-learn
 scipy
 matplotlib
+psutil
 
 faiss-cpu
 hnswlib
