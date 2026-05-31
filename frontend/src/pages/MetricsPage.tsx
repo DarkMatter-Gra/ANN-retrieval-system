@@ -22,6 +22,108 @@ type DashboardData = {
   status: string;
 };
 
+function latestValue(values: number[] | undefined) {
+  if (!values?.length) return 0;
+  return Number(values[values.length - 1] ?? 0);
+}
+
+function maxValue(values: number[] | undefined) {
+  if (!values?.length) return 0;
+  return Math.max(...values.map((v) => Number(v) || 0), 0);
+}
+
+function TrendBars({
+  title,
+  values,
+  labels,
+  color,
+  unit,
+}: {
+  title: string;
+  values: number[];
+  labels: string[];
+  color: string;
+  unit: string;
+}) {
+  const safeValues = values.length ? values.map((v) => Number(v) || 0) : [0];
+  const max = Math.max(...safeValues, 1);
+
+  return (
+    <div
+      style={{
+        background: "#f9f9f9",
+        padding: "1rem",
+        borderRadius: "4px",
+      }}
+    >
+      <h4>{title}</h4>
+      <div
+        style={{
+          display: "flex",
+          gap: "0.35rem",
+          alignItems: "flex-end",
+          height: "128px",
+          marginTop: "1rem",
+        }}
+      >
+        {safeValues.map((val, i) => {
+          const height = Math.max((val / max) * 100, val > 0 ? 8 : 2);
+          return (
+            <div
+              key={i}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                height: "100%",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "0.72rem",
+                  color: "var(--text-soft)",
+                  marginBottom: "4px",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {val}
+              </span>
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: "48px",
+                  minHeight: "2px",
+                  height: `${height}%`,
+                  background: color,
+                  borderRadius: "6px 6px 0 0",
+                }}
+                title={`${title}: ${val}${unit}`}
+              />
+              <span
+                style={{
+                  fontSize: "0.68rem",
+                  marginTop: "4px",
+                  color: "var(--muted)",
+                  maxWidth: "64px",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={labels[i] ?? "-"}
+              >
+                {labels[i] ?? "-"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function MetricsPage() {
   const { token, baseUrl } = useAuth();
   const { toast, showToast, handleError } = useToast();
@@ -72,12 +174,9 @@ export function MetricsPage() {
     loadDashboard();
   }, []);
 
-  const qpsMax = dashboardData
-    ? Math.max(...dashboardData.qps_trend, 1)
-    : 1;
-  const latencyMax = dashboardData
-    ? Math.max(...dashboardData.latency_trend, 1)
-    : 1;
+  const qpsTrend = dashboardData?.qps_trend ?? [];
+  const latencyTrend = dashboardData?.latency_trend ?? [];
+  const timestamps = dashboardData?.timestamps ?? [];
 
   return (
     <div className="page-container">
@@ -168,7 +267,46 @@ export function MetricsPage() {
         </div>
         {dashboardData ? (
           <div>
-            <p style={{ marginBottom: "1rem" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: "0.8rem",
+                marginBottom: "1rem",
+              }}
+            >
+              {[
+                ["系统状态", dashboardData.status.toUpperCase()],
+                ["最新 QPS", String(latestValue(qpsTrend))],
+                ["峰值 QPS", String(maxValue(qpsTrend))],
+                ["最新延迟", `${latestValue(latencyTrend)} ms`],
+                ["最大延迟", `${maxValue(latencyTrend)} ms`],
+                ["采样点", String(Math.max(qpsTrend.length, latencyTrend.length))],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="summary-box"
+                  style={{ minHeight: "auto", padding: "0.75rem 0.9rem" }}
+                >
+                  <strong>{label}</strong>
+                  <span
+                    style={{
+                      fontSize: "1.15rem",
+                      fontWeight: 700,
+                      color:
+                        label === "系统状态" &&
+                        dashboardData.status !== "healthy"
+                          ? "var(--danger)"
+                          : "var(--text)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p style={{ marginBottom: "1rem", color: "var(--text-soft)" }}>
               <strong>当前系统状态:</strong>{" "}
               <span
                 style={{
@@ -185,94 +323,26 @@ export function MetricsPage() {
                 gap: "1rem",
               }}
             >
-              <div
-                style={{
-                  background: "#f9f9f9",
-                  padding: "1rem",
-                  borderRadius: "4px",
-                }}
-              >
-                <h4>QPS 趋势</h4>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "0.2rem",
-                    alignItems: "flex-end",
-                    height: "100px",
-                    marginTop: "1rem",
-                  }}
-                >
-                  {dashboardData.qps_trend.map((val, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        flex: 1,
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: "100%",
-                          background: "#4CAF50",
-                          height: `${(val / qpsMax) * 100}%`,
-                        }}
-                        title={`QPS: ${val}`}
-                      ></div>
-                      <span style={{ fontSize: "0.7em", marginTop: "4px" }}>
-                        {dashboardData.timestamps[i] ?? "-"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div
-                style={{
-                  background: "#f9f9f9",
-                  padding: "1rem",
-                  borderRadius: "4px",
-                }}
-              >
-                <h4>延迟趋势 (ms)</h4>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "0.2rem",
-                    alignItems: "flex-end",
-                    height: "100px",
-                    marginTop: "1rem",
-                  }}
-                >
-                  {dashboardData.latency_trend.map((val, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        flex: 1,
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: "100%",
-                          background: "#F44336",
-                          height: `${(val / latencyMax) * 100}%`,
-                        }}
-                        title={`Latency: ${val}ms`}
-                      ></div>
-                      <span style={{ fontSize: "0.7em", marginTop: "4px" }}>
-                        {dashboardData.timestamps[i] ?? "-"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <TrendBars
+                title="QPS 趋势"
+                values={qpsTrend}
+                labels={timestamps}
+                color="#4CAF50"
+                unit=""
+              />
+              <TrendBars
+                title="延迟趋势"
+                values={latencyTrend}
+                labels={timestamps}
+                color="#F44336"
+                unit="ms"
+              />
             </div>
           </div>
         ) : (
-          <div className="empty-state">暂无数据</div>
+          <div className="empty-state">
+            {loadingDashboard ? "正在加载实时性能大盘…" : "暂无数据"}
+          </div>
         )}
       </article>
 
