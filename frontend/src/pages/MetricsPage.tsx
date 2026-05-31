@@ -3,15 +3,16 @@ import { apiCall } from "../api";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../lib/useToast";
 
-type MetricItem = {
+type SearchMetrics = {
   index_id?: number;
-  index_name?: string;
-  avg_latency_ms?: number;
-  p99_latency_ms?: number;
-  recall_at_10?: number;
-  total_queries?: number;
-  error_rate?: number;
-  timestamp?: string;
+  time_range?: string;
+  p50?: number;
+  p95?: number;
+  p99?: number;
+  qps?: number;
+  avg_progress?: number;
+  indexes_total?: number;
+  indexes_loaded?: number;
 };
 
 type DashboardData = {
@@ -25,7 +26,7 @@ export function MetricsPage() {
   const { token, baseUrl } = useAuth();
   const { toast, showToast, handleError } = useToast();
 
-  const [metrics, setMetrics] = useState<MetricItem[] | null>(null);
+  const [metrics, setMetrics] = useState<SearchMetrics | null>(null);
   const [loading, setLoading] = useState(false);
 
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(
@@ -36,16 +37,12 @@ export function MetricsPage() {
   async function loadMetrics() {
     setLoading(true);
     try {
-      const resp = await apiCall<{ list?: MetricItem[] } | MetricItem[]>({
+      const resp = await apiCall<SearchMetrics>({
         baseUrl,
         token,
         path: "/metrics/search",
       });
-      const data = resp.data;
-      const list = Array.isArray(data)
-        ? data
-        : ((data as { list?: MetricItem[] }).list ?? [data as MetricItem]);
-      setMetrics(list);
+      setMetrics(resp.data);
       showToast("指标已刷新", "success");
     } catch (err) {
       handleError(err);
@@ -71,6 +68,7 @@ export function MetricsPage() {
   }
 
   useEffect(() => {
+    loadMetrics();
     loadDashboard();
   }, []);
 
@@ -111,51 +109,43 @@ export function MetricsPage() {
             <table>
               <thead>
                 <tr>
-                  <th>索引 ID</th>
-                  <th>索引名称</th>
-                  <th>平均延迟 (ms)</th>
+                  <th>统计范围</th>
+                  <th>P50 延迟 (ms)</th>
+                  <th>P95 延迟 (ms)</th>
                   <th>P99 延迟 (ms)</th>
-                  <th>Recall@10</th>
-                  <th>总查询数</th>
-                  <th>错误率</th>
+                  <th>QPS</th>
+                  <th>平均进度</th>
+                  <th>索引加载</th>
                 </tr>
               </thead>
               <tbody>
-                {metrics.length ? (
-                  metrics.map((m, i) => (
-                    <tr key={m.index_id ?? i}>
-                      <td>
-                        <strong>{m.index_id ?? "-"}</strong>
-                      </td>
-                      <td>{m.index_name ?? "-"}</td>
-                      <td>{m.avg_latency_ms?.toFixed(2) ?? "-"}</td>
-                      <td>{m.p99_latency_ms?.toFixed(2) ?? "-"}</td>
-                      <td>
-                        {m.recall_at_10 != null
-                          ? `${(m.recall_at_10 * 100).toFixed(1)}%`
-                          : "-"}
-                      </td>
-                      <td>{m.total_queries ?? "-"}</td>
-                      <td>
-                        {m.error_rate != null
-                          ? `${(m.error_rate * 100).toFixed(2)}%`
-                          : "-"}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={7}>
-                      <div className="empty-state">暂无指标数据</div>
-                    </td>
-                  </tr>
-                )}
+                <tr>
+                  <td>
+                    <strong>{metrics.time_range ?? "1h"}</strong>
+                    {metrics.index_id ? ` / index ${metrics.index_id}` : ""}
+                  </td>
+                  <td>{metrics.p50?.toFixed(2) ?? "-"}</td>
+                  <td>{metrics.p95?.toFixed(2) ?? "-"}</td>
+                  <td>{metrics.p99?.toFixed(2) ?? "-"}</td>
+                  <td>{metrics.qps?.toFixed(4) ?? "-"}</td>
+                  <td>
+                    {metrics.avg_progress != null
+                      ? `${metrics.avg_progress.toFixed(1)}%`
+                      : "-"}
+                  </td>
+                  <td>
+                    {metrics.indexes_loaded ?? "-"} /{" "}
+                    {metrics.indexes_total ?? "-"}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
         ) : (
           <div className="detail-box">
-            <div className="empty-state">点击"刷新指标"获取最新性能数据</div>
+            <div className="empty-state">
+              {loading ? "正在加载性能指标…" : "暂无指标数据"}
+            </div>
           </div>
         )}
       </article>
