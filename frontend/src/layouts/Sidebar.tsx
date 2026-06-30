@@ -62,6 +62,11 @@ const NAV_GROUPS: NavGroup[] = [
         roles: ["admin", "dev", "user", "service", "readonly"],
       },
       {
+        path: "/app/ai-search",
+        label: "AI 智能检索",
+        roles: ["admin", "dev", "user", "service", "readonly"],
+      },
+      {
         path: "/app/batch-search",
         label: "批量检索",
         roles: ["admin", "dev", "user", "service"],
