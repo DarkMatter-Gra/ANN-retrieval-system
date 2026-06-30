@@ -4,8 +4,6 @@ import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { RoleRoute } from "./auth/RoleRoute";
 import { AppLayout } from "./layouts/AppLayout";
 import { AiSearchPage } from "./pages/AiSearchPage";
-import { BatchSearchPage } from "./pages/BatchSearchPage";
-import { BioinfoPage } from "./pages/BioinfoPage";
 import { ClinicalPage } from "./pages/ClinicalPage";
 import { DatabasePage } from "./pages/DatabasePage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -53,14 +51,11 @@ export default function App() {
               <Route path="/app/datasets" element={<DatasetsPage />} />
             </Route>
 
-            {/* Batch search: all except readonly, auditor */}
+            {/* Batch search merged into 向量检索：旧链接重定向 */}
             <Route
-              element={
-                <RoleRoute roles={["admin", "dev", "user", "service"]} />
-              }
-            >
-              <Route path="/app/batch-search" element={<BatchSearchPage />} />
-            </Route>
+              path="/app/batch-search"
+              element={<Navigate to="/app/search" replace />}
+            />
 
             {/* Tasks: admin, service, readonly, auditor */}
             <Route
@@ -97,11 +92,6 @@ export default function App() {
             <Route element={<RoleRoute roles={["admin", "user"]} />}>
               <Route path="/app/clinical" element={<ClinicalPage />} />
               <Route path="/app/experiment" element={<ExperimentPage />} />
-            </Route>
-
-            {/* Bioinfo: service + admin */}
-            <Route element={<RoleRoute roles={["admin", "service"]} />}>
-              <Route path="/app/bioinfo" element={<BioinfoPage />} />
             </Route>
 
             {/* Research: dev + admin */}

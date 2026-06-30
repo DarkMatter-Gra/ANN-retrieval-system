@@ -73,9 +73,9 @@ export function ExperimentPage() {
           <strong>细胞聚类可视化</strong>
           <p>UMAP/t-SNE 散点图辅助分析细胞亚群分布</p>
         </Link>
-        <Link to="/app/batch-search" className="feature-card">
+        <Link to="/app/search" className="feature-card">
           <strong>批量样本分析</strong>
-          <p>提交大规模样本批量检索任务</p>
+          <p>切换到批量模式，提交大规模样本检索任务</p>
         </Link>
         <Link to="/app/reports" className="feature-card">
           <strong>质控报告</strong>

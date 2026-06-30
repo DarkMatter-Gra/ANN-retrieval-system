@@ -70,9 +70,9 @@ export function ResearchPage() {
           <strong>单次检索调试</strong>
           <p>测试不同参数（ef_search、mode、metric）对检索的影响</p>
         </Link>
-        <Link to="/app/batch-search" className="feature-card">
+        <Link to="/app/search" className="feature-card">
           <strong>批量性能测试</strong>
-          <p>提交批量检索任务，评估吞吐量和延迟</p>
+          <p>切换到批量模式提交检索任务，评估吞吐量和延迟</p>
         </Link>
         <Link to="/app/metrics" className="feature-card">
           <strong>性能指标</strong>

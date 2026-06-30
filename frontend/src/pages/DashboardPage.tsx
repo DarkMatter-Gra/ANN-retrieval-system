@@ -38,12 +38,6 @@ const LINK_GROUPS: LinkGroup[] = [
         roles: ["user", "admin"],
       },
       {
-        path: "/app/bioinfo",
-        label: "API 接入",
-        desc: "程序化检索 · 批量任务管理",
-        roles: ["service", "admin"],
-      },
-      {
         path: "/app/research",
         label: "研发工作台",
         desc: "索引构建 · 算法调优 · 评估",
@@ -92,14 +86,8 @@ const LINK_GROUPS: LinkGroup[] = [
       {
         path: "/app/search",
         label: "向量检索",
-        desc: "单次 ANN · cell_id / 向量",
+        desc: "单次 ANN · 批量任务 · cell_id / 向量",
         roles: ["admin", "dev", "user", "service", "readonly"],
-      },
-      {
-        path: "/app/batch-search",
-        label: "批量检索",
-        desc: "异步批量任务提交",
-        roles: ["admin", "dev", "user", "service"],
       },
       {
         path: "/app/tasks",
