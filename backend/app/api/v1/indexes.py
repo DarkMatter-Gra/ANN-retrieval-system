@@ -23,7 +23,7 @@ def create_index(
     return success(
         IndexService(db).create_index_task(
             owner=operator,
-            dataset_id=payload.dataset_id,
+            dataset_ids=payload.dataset_ids or [payload.dataset_id],
             index_name=payload.index_name,
             index_type=payload.index_type,
             metric=payload.metric,

@@ -28,11 +28,12 @@ export function SearchPage() {
     const form = new FormData(e.currentTarget);
     const qt = String(form.get("query_type") || "cell_id");
 
-    // 入参校验，避免空值打到后端拿 400
-    const datasetId = Number(form.get("dataset_id"));
+    // 入参校验：index_id 必填；dataset_id 可选（联合索引下允许跨数据集查询）
+    const datasetIdRaw = String(form.get("dataset_id") || "").trim();
+    const datasetId = datasetIdRaw ? Number(datasetIdRaw) : undefined;
     const indexId = Number(form.get("index_id"));
-    if (!datasetId || !indexId) {
-      showToast("请填写数据集 ID 和索引 ID", "error");
+    if (!indexId) {
+      showToast("请填写索引 ID", "error");
       return;
     }
 
@@ -61,7 +62,6 @@ export function SearchPage() {
 
     setSubmitting(true);
     const payload: Record<string, unknown> = {
-      dataset_id: datasetId,
       index_id: indexId,
       query_type: qt,
       top_k: clamp(Number(form.get("top_k") || 10), 1, 1000),
@@ -69,6 +69,19 @@ export function SearchPage() {
       metric: String(form.get("metric") || "l2"),
       filters: safeJsonParse(form.get("filters"), {}),
     };
+    if (datasetId) payload.dataset_id = datasetId;
+
+    // 跨数据集查询：source_dataset_id 指定 cell_id 解析所在数据集；dataset_ids 限制候选数据集
+    const sourceDsRaw = String(form.get("source_dataset_id") || "").trim();
+    if (sourceDsRaw) payload.source_dataset_id = Number(sourceDsRaw);
+    const dsIdsRaw = String(form.get("dataset_ids") || "").trim();
+    if (dsIdsRaw) {
+      const ids = dsIdsRaw
+        .split(/[,，\s]+/)
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      if (ids.length > 0) payload.dataset_ids = ids;
+    }
 
     const efSearch = String(form.get("ef_search") || "").trim();
     if (efSearch) payload.ef_search = Number(efSearch);
@@ -143,7 +156,7 @@ export function SearchPage() {
                 type="number"
                 min="1"
                 defaultValue={localStorage.getItem(DS_KEY) || ""}
-                required
+                placeholder="联合索引下可省略"
               />
             </label>
             <label>
@@ -154,6 +167,23 @@ export function SearchPage() {
                 min="1"
                 defaultValue={localStorage.getItem(IDX_KEY) || ""}
                 required
+              />
+            </label>
+            <label>
+              <span>source_dataset_id（跨库 cell_id 解析）</span>
+              <input
+                name="source_dataset_id"
+                type="number"
+                min="1"
+                placeholder="可选；指定 cell_id 所在数据集"
+              />
+            </label>
+            <label>
+              <span>过滤候选数据集 IDs</span>
+              <input
+                name="dataset_ids"
+                type="text"
+                placeholder="如 1,2；可选，限定结果来源数据集"
               />
             </label>
             <label>
@@ -271,13 +301,21 @@ export function SearchPage() {
               {searchList.length ? (
                 searchList.map((item) => (
                   <article
-                    key={`${item.rank}-${item.cell_id}`}
+                    key={`${item.rank}-${item.source_dataset_id ?? "x"}-${item.cell_id}`}
                     className="result-card"
                   >
                     <header>
                       <div>
                         <h5>
                           #{item.rank} {item.cell_id}
+                          {item.source_dataset_id != null && (
+                            <span
+                              className="muted"
+                              style={{ marginLeft: "0.5rem", fontSize: "0.8rem" }}
+                            >
+                              [ds={item.source_dataset_id}]
+                            </span>
+                          )}
                         </h5>
                         <p>
                           {item.cell_type ?? "-"} | {item.organ ?? "-"} |{" "}

@@ -35,6 +35,8 @@ class IndexType(str, enum.Enum):
     flat = "flat"
     ivf_pq = "ivf_pq"
     hnsw = "hnsw"
+    # 自研改进算法：HNSW 召回 + 精排重排（可选 fp16 向量压缩，兼顾召回率/时延/内存）
+    hnsw_rerank = "hnsw_rerank"
 
 
 class MetricType(str, enum.Enum):

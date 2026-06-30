@@ -58,6 +58,8 @@ export type IndexItem = {
   status?: string;
   recall?: number;
   memory_usage?: number;
+  dataset_id?: number;
+  dataset_ids?: number[];
 };
 
 export type SearchResult = {
@@ -68,6 +70,7 @@ export type SearchResult = {
   cell_type?: string | null;
   organ?: string | null;
   sample_id?: string | null;
+  source_dataset_id?: number;
 };
 
 export type SearchResponse = {
@@ -75,6 +78,7 @@ export type SearchResponse = {
   results?: SearchResult[];
   latency_ms?: number;
   recall_estimate?: number;
+  index_dataset_ids?: number[];
 };
 
 export type TaskSnapshot = {

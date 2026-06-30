@@ -13,6 +13,9 @@ class ANNIndex(Base, TimestampMixin):
         index=True,
         nullable=False,
     )
+    # 多数据集联合索引：包含 dataset_id 在内的所有参与数据集 ID（按构建时顺序）。
+    # 单数据集场景下退化为 [dataset_id]。
+    dataset_ids: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     owner_user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"), index=True, nullable=False
     )
