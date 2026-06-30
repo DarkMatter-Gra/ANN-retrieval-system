@@ -77,9 +77,9 @@ export function ClinicalPage() {
           <strong>诊断报告</strong>
           <p>生成数据质量与检索结果诊断报告</p>
         </Link>
-        <Link to="/app/batch-search" className="feature-card">
+        <Link to="/app/search" className="feature-card">
           <strong>批量样本检索</strong>
-          <p>提交多样本批量检索任务，异步获取结果</p>
+          <p>切换到批量模式，提交多样本检索任务并异步获取结果</p>
         </Link>
       </div>
 
