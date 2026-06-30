@@ -15,8 +15,12 @@ from app.utils.index_io import load_hnsw, read_faiss, write_faiss, write_hnsw
 from app.utils.time import utcnow_iso
 
 
-SUPPORTED_INDEX_TYPES = {"flat", "ivf_pq", "hnsw"}
+SUPPORTED_INDEX_TYPES = {"flat", "ivf_pq", "hnsw", "hnsw_rerank"}
 SUPPORTED_METRICS = {"l2", "ip", "cosine"}
+
+# hnsw_rerank：召回阶段 fetch_k = top_k * rerank_factor，再用精排数据回算原始距离
+DEFAULT_RERANK_FACTOR = 4
+MIN_RERANK_FETCH = 32
 
 
 @dataclass
@@ -76,6 +80,23 @@ class ANNEngine:
             if ef < 1:
                 raise ValueError("hnsw ef must be positive")
 
+        if index_type == "hnsw_rerank":
+            m = int(params.get("M", 16))
+            ef_construction = int(params.get("ef_construction", 200))
+            ef = int(params.get("ef", 64))
+            rerank_factor = int(params.get("rerank_factor", DEFAULT_RERANK_FACTOR))
+            if m < 4 or m > 128:
+                raise ValueError("hnsw_rerank M must be between 4 and 128")
+            if ef_construction < m:
+                raise ValueError("hnsw_rerank ef_construction must be >= M")
+            if ef < 1:
+                raise ValueError("hnsw_rerank ef must be positive")
+            if rerank_factor < 1 or rerank_factor > 64:
+                raise ValueError("hnsw_rerank rerank_factor must be between 1 and 64")
+            use_fp16 = bool(params.get("use_fp16", True))
+            if not isinstance(use_fp16, bool):
+                raise ValueError("hnsw_rerank use_fp16 must be boolean")
+
     @staticmethod
     def default_pq_m(dim: int) -> int:
         for candidate in (16, 12, 10, 8, 6, 5, 4, 3, 2, 1):
@@ -84,10 +105,12 @@ class ANNEngine:
         return 1
 
     @staticmethod
-    def build(index_obj: ANNIndex, vectors: np.ndarray, cell_ids: list[str]) -> IndexBuildResult:
+    def build(index_obj: ANNIndex, vectors: np.ndarray, cell_ids: list[str], dataset_ids: list[int] | None = None) -> IndexBuildResult:
         prepared = ANNEngine.prepare_matrix(vectors)
         if prepared.shape[0] != len(cell_ids):
             raise ValueError("cell_ids length must match vector count")
+        if dataset_ids is not None and len(dataset_ids) != len(cell_ids):
+            raise ValueError("dataset_ids length must match cell_ids length")
         dim = int(prepared.shape[1])
         vector_count = int(prepared.shape[0])
         params = dict(index_obj.params_json or {})
@@ -114,11 +137,19 @@ class ANNEngine:
         elif index_obj.index_type == "hnsw":
             index = ANNEngine.build_hnsw(build_vectors, index_obj.metric_type, params)
             write_hnsw(index, str(index_path))
+        elif index_obj.index_type == "hnsw_rerank":
+            index = ANNEngine.build_hnsw(build_vectors, index_obj.metric_type, params)
+            write_hnsw(index, str(index_path))
+            # 精排向量：fp16 可节省 50% 内存，精排时回算 float32 距离
+            use_fp16 = bool(params.get("use_fp16", True))
+            rerank_dtype = np.float16 if use_fp16 else np.float32
+            rerank_path = index_path.with_suffix(".rerank.npy")
+            np.save(str(rerank_path), build_vectors.astype(rerank_dtype, copy=False))
         else:
             raise ValueError(f"unsupported index type: {index_obj.index_type}")
 
         build_seconds = round(time.perf_counter() - started, 4)
-        ANNEngine.write_id_map(id_map_path, cell_ids)
+        ANNEngine.write_id_map(id_map_path, cell_ids, dataset_ids)
         ANNEngine.write_meta(
             meta_path,
             index_obj=index_obj,
@@ -221,6 +252,18 @@ class ANNEngine:
             )
             obj.set_ef(int((index_obj.params_json or {}).get("ef", 64)))
             return obj
+        if index_obj.index_type == "hnsw_rerank":
+            if dim is None:
+                dim = ANNEngine.read_meta_dim(index_obj)
+            hnsw_obj = load_hnsw(
+                str(index_obj.file_path),
+                space=ANNEngine.hnsw_space(index_obj.metric_type),
+                dim=int(dim),
+            )
+            hnsw_obj.set_ef(int((index_obj.params_json or {}).get("ef", 64)))
+            rerank_path = Path(index_obj.file_path).with_suffix(".rerank.npy")
+            rerank_vectors = np.load(str(rerank_path)) if rerank_path.exists() else None
+            return {"hnsw": hnsw_obj, "rerank_vectors": rerank_vectors}
         raise ValueError(f"unsupported index type: {index_obj.index_type}")
 
     @staticmethod
@@ -238,7 +281,48 @@ class ANNEngine:
                 loaded_index.set_ef(int(params["ef_search"]))
             indices, distances = loaded_index.knn_query(query_vec, k=int(top_k))
             return distances[0], indices[0]
+        if index_obj.index_type == "hnsw_rerank":
+            return ANNEngine._search_hnsw_rerank(index_obj, loaded_index, query_vec, int(top_k), params or {})
         raise ValueError(f"unsupported index type: {index_obj.index_type}")
+
+    @staticmethod
+    def _search_hnsw_rerank(
+        index_obj: ANNIndex,
+        loaded_index: dict,
+        query_vec: np.ndarray,
+        top_k: int,
+        params: dict,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        hnsw_obj = loaded_index["hnsw"]
+        rerank_vectors: np.ndarray | None = loaded_index.get("rerank_vectors")
+        index_params = dict(index_obj.params_json or {})
+        rerank_factor = int(params.get("rerank_factor") or index_params.get("rerank_factor") or DEFAULT_RERANK_FACTOR)
+        ef_search = int(params.get("ef_search") or index_params.get("ef", 64))
+        hnsw_obj.set_ef(max(ef_search, top_k * rerank_factor))
+
+        total_elements = int(hnsw_obj.get_current_count())
+        fetch_k = min(total_elements, max(top_k * rerank_factor, MIN_RERANK_FETCH, top_k))
+        cand_indices, cand_distances = hnsw_obj.knn_query(query_vec, k=fetch_k)
+        cand_indices = cand_indices[0]
+        cand_distances = cand_distances[0]
+        if rerank_vectors is None or len(cand_indices) <= top_k:
+            return cand_distances[:top_k], cand_indices[:top_k]
+
+        # 精排：在小候选集合内用 float32 重新计算精确距离
+        sub = rerank_vectors[cand_indices].astype(np.float32, copy=False)
+        metric = index_obj.metric_type
+        q = query_vec.reshape(-1).astype(np.float32, copy=False)
+        if metric == "cosine":
+            sub_norm = sub / np.maximum(np.linalg.norm(sub, axis=1, keepdims=True), 1e-12)
+            q_norm = q / max(float(np.linalg.norm(q)), 1e-12)
+            exact = 1.0 - np.dot(sub_norm, q_norm)
+        elif metric == "ip":
+            exact = -np.dot(sub, q)
+        else:
+            diff = sub - q
+            exact = np.einsum("ij,ij->i", diff, diff)
+        order = np.argsort(exact)[:top_k]
+        return exact[order].astype(np.float32), cand_indices[order].astype(np.int64)
 
     @staticmethod
     def exact_search(vectors: np.ndarray, query: np.ndarray, metric: str, top_k: int):
@@ -279,8 +363,14 @@ class ANNEngine:
         return Path(index_obj.file_path).with_suffix(".meta.json")
 
     @staticmethod
-    def write_id_map(path: Path, cell_ids: list[str]) -> None:
-        data = [{"position": i, "cell_id": cell_id} for i, cell_id in enumerate(cell_ids)]
+    def write_id_map(path: Path, cell_ids: list[str], dataset_ids: list[int] | None = None) -> None:
+        if dataset_ids is not None:
+            data = [
+                {"position": i, "cell_id": cell_id, "dataset_id": int(dataset_ids[i])}
+                for i, cell_id in enumerate(cell_ids)
+            ]
+        else:
+            data = [{"position": i, "cell_id": cell_id} for i, cell_id in enumerate(cell_ids)]
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     @staticmethod
@@ -290,6 +380,22 @@ class ANNEngine:
             return []
         data = json.loads(path.read_text(encoding="utf-8"))
         return [item["cell_id"] for item in sorted(data, key=lambda item: int(item["position"]))]
+
+    @staticmethod
+    def read_id_map_entries(index_obj: ANNIndex) -> list[dict]:
+        """同时返回 cell_id 与可选的 dataset_id（用于多数据集联合索引）。"""
+        path = ANNEngine.id_map_path(index_obj)
+        if not path.exists():
+            return []
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return [
+            {
+                "position": int(item["position"]),
+                "cell_id": item["cell_id"],
+                "dataset_id": int(item["dataset_id"]) if item.get("dataset_id") is not None else None,
+            }
+            for item in sorted(data, key=lambda item: int(item["position"]))
+        ]
 
     @staticmethod
     def write_meta(
@@ -304,6 +410,7 @@ class ANNEngine:
         meta = {
             "index_id": index_obj.id,
             "dataset_id": index_obj.dataset_id,
+            "dataset_ids": list(getattr(index_obj, "dataset_ids", None) or [index_obj.dataset_id]),
             "index_name": index_obj.index_name,
             "index_type": index_obj.index_type,
             "metric_type": index_obj.metric_type,

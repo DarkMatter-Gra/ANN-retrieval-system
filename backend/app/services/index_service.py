@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import func
+from sqlalchemy import String, func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -46,48 +46,83 @@ class IndexService:
     def create_index_task(
         self,
         owner: User,
-        dataset_id: int,
         index_name: str,
         index_type: str,
         metric: str,
         params_json: dict,
+        dataset_ids: list[int] | None = None,
+        dataset_id: int | None = None,  # 单数据集旧入参，保留兼容
     ) -> dict:
         from app.tasks.index_tasks import build_index_task
 
-        dataset = self.db.query(ExpressionMetadata).filter(ExpressionMetadata.id == dataset_id).first()
-        if not dataset or dataset.deleted_flag:
+        # 归一化 dataset_ids
+        if dataset_ids:
+            ds_id_list = [int(d) for d in dataset_ids if d is not None]
+        elif dataset_id is not None:
+            ds_id_list = [int(dataset_id)]
+        else:
+            raise ValidationFailed("dataset_id or dataset_ids is required")
+        # 保序去重
+        seen: set[int] = set()
+        ordered_ds_ids: list[int] = []
+        for d in ds_id_list:
+            if d not in seen:
+                seen.add(d)
+                ordered_ds_ids.append(d)
+        if not ordered_ds_ids:
+            raise ValidationFailed("dataset_ids is empty")
+        primary_dataset_id = ordered_ds_ids[0]
+
+        datasets = (
+            self.db.query(ExpressionMetadata)
+            .filter(ExpressionMetadata.id.in_(ordered_ds_ids))
+            .all()
+        )
+        if len(datasets) != len(ordered_ds_ids):
             raise DatasetNotFoundError()
-        if owner.role != "admin" and dataset.owner_user_id != owner.id:
-            raise ResourceForbiddenError()
-        if dataset.preprocess_status != "done":
-            raise ConflictError("dataset preprocess not done")
-        sample = (
-            self.db.query(CellVector)
-            .filter(CellVector.dataset_id == dataset_id, CellVector.vector_type == "pca")
-            .first()
+        for ds in datasets:
+            if ds.deleted_flag:
+                raise DatasetNotFoundError()
+            if owner.role != "admin" and ds.owner_user_id != owner.id:
+                raise ResourceForbiddenError()
+            if ds.preprocess_status != "done":
+                raise ConflictError(f"dataset {ds.id} preprocess not done")
+
+        # 联合索引要求所有数据集 PCA 维度一致
+        sample_rows = (
+            self.db.query(CellVector.dataset_id, CellVector.dim, func.count(CellVector.id))
+            .filter(CellVector.dataset_id.in_(ordered_ds_ids), CellVector.vector_type == "pca")
+            .group_by(CellVector.dataset_id, CellVector.dim)
+            .all()
         )
-        vector_count = (
-            self.db.query(CellVector)
-            .filter(CellVector.dataset_id == dataset_id, CellVector.vector_type == "pca")
-            .count()
-        )
-        if not sample or vector_count <= 0:
-            raise ConflictError("dataset has no pca vectors")
+        if not sample_rows:
+            raise ConflictError("no pca vectors available across selected datasets")
+        dims = {int(dim) for _, dim, _ in sample_rows}
+        if len(dims) != 1:
+            raise ConflictError(f"pca dim mismatch across datasets: {sorted(dims)}")
+        sample_dim = next(iter(dims))
+        per_dataset_count = {int(ds_id): int(cnt) for ds_id, _, cnt in sample_rows}
+        for ds_id in ordered_ds_ids:
+            if per_dataset_count.get(ds_id, 0) <= 0:
+                raise ConflictError(f"dataset {ds_id} has no pca vectors")
+        vector_count = sum(per_dataset_count.values())
+
         try:
-            ANNEngine.validate_config(index_type, metric, params_json, int(sample.dim), int(vector_count))
+            ANNEngine.validate_config(index_type, metric, params_json, int(sample_dim), int(vector_count))
         except ValueError as exc:
             raise ValidationFailed(str(exc)) from exc
 
         latest_version = (
             self.db.query(func.coalesce(func.max(ANNIndex.version_no), 0))
-            .filter(ANNIndex.dataset_id == dataset_id)
+            .filter(ANNIndex.dataset_id == primary_dataset_id)
             .scalar()
         )
         version_no = int(latest_version or 0) + 1
-        index_dir = ensure_dir(self.index_root / str(dataset_id) / f"v{version_no}")
+        index_dir = ensure_dir(self.index_root / str(primary_dataset_id) / f"v{version_no}")
 
         index_obj = ANNIndex(
-            dataset_id=dataset_id,
+            dataset_id=primary_dataset_id,
+            dataset_ids=ordered_ds_ids,
             owner_user_id=owner.id,
             index_name=index_name,
             index_type=index_type,
@@ -106,12 +141,13 @@ class IndexService:
             task_id=uuid.uuid4().hex,
             owner_user_id=owner.id,
             task_type="build_index",
-            dataset_id=dataset_id,
+            dataset_id=primary_dataset_id,
             index_id=index_obj.id,
             status="pending",
             progress=0,
             request_payload={
-                "dataset_id": dataset_id,
+                "dataset_id": primary_dataset_id,
+                "dataset_ids": ordered_ds_ids,
                 "index_type": index_type,
                 "metric": metric,
                 "params_json": params_json,
@@ -120,11 +156,22 @@ class IndexService:
         self.db.add(task)
         self.db.commit()
 
-        write_audit(owner.id, "create_index", "index", str(index_obj.id), {"type": index_type})
-        build_index_task.delay(task.task_id, dataset_id, index_obj.id)
+        write_audit(
+            owner.id,
+            "create_index",
+            "index",
+            str(index_obj.id),
+            {"type": index_type, "dataset_ids": ordered_ds_ids},
+        )
+        build_index_task.delay(task.task_id, ordered_ds_ids, index_obj.id)
         self.db.refresh(task)
         self.db.refresh(index_obj)
-        return {"index_id": index_obj.id, "task_id": task.task_id, "status": task.status}
+        return {
+            "index_id": index_obj.id,
+            "task_id": task.task_id,
+            "status": task.status,
+            "dataset_ids": ordered_ds_ids,
+        }
 
     # ----------------------------- 列表/详情 -----------------------------
     def list_indexes(
@@ -137,7 +184,12 @@ class IndexService:
     ) -> dict:
         query = self.db.query(ANNIndex)
         if dataset_id is not None:
-            query = query.filter(ANNIndex.dataset_id == dataset_id)
+            # 联合索引：主 dataset_id 命中，或 dataset_ids JSON 中包含该值
+            like_token = f"%{int(dataset_id)}%"
+            query = query.filter(
+                (ANNIndex.dataset_id == dataset_id)
+                | (ANNIndex.dataset_ids.cast(String).like(like_token))
+            )
         if status is not None:
             query = query.filter(ANNIndex.build_status == status)
         if current_user.role != "admin":
@@ -240,6 +292,7 @@ class IndexService:
         return {
             "index_id": r.id,
             "dataset_id": r.dataset_id,
+            "dataset_ids": list(r.dataset_ids or [r.dataset_id]),
             "index_name": r.index_name,
             "index_type": r.index_type,
             "metric_type": r.metric_type,

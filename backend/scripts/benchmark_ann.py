@@ -45,6 +45,24 @@ HNSW_CONFIGS = [
     },
 ]
 
+# hnsw_rerank：HNSW 召回 + float32 精排。rerank_factor 控制候选放大倍数。
+HNSW_RERANK_CONFIGS = [
+    {
+        "name": "hnsw_rerank_fp32",
+        "params": {"M": 16, "ef_construction": 120},
+        "ef_search_values": [32, 64],
+        "rerank_factors": [2, 4, 8],
+        "use_fp16": False,
+    },
+    {
+        "name": "hnsw_rerank_fp16",
+        "params": {"M": 16, "ef_construction": 120},
+        "ef_search_values": [32, 64],
+        "rerank_factors": [4, 8],
+        "use_fp16": True,
+    },
+]
+
 
 def percentile(values: list[float], p: float) -> float:
     if not values:
@@ -120,6 +138,38 @@ def query_hnsw(index: hnswlib.Index, queries: np.ndarray, top_k: int, ef_search:
     return result_indices, summarize_latencies(latencies)
 
 
+def query_hnsw_rerank(
+    index: hnswlib.Index,
+    rerank_vectors: np.ndarray,
+    queries: np.ndarray,
+    top_k: int,
+    ef_search: int,
+    rerank_factor: int,
+) -> tuple[list[list[int]], dict]:
+    """HNSW 召回 top_k * rerank_factor 个候选后，用 float32 重排，模拟 ann_engine.hnsw_rerank。"""
+    fetch_k = max(top_k * int(rerank_factor), top_k)
+    fetch_k = min(fetch_k, int(rerank_vectors.shape[0]))
+    index.set_ef(max(int(ef_search), fetch_k))
+    result_indices: list[list[int]] = []
+    latencies: list[float] = []
+    for query in queries:
+        started = time.perf_counter()
+        cand_labels, _ = index.knn_query(query.reshape(1, -1), k=fetch_k)
+        cand = cand_labels[0]
+        sub = rerank_vectors[cand].astype(np.float32, copy=False)
+        diff = sub - query.reshape(1, -1)
+        exact = np.einsum("ij,ij->i", diff, diff)
+        order = np.argsort(exact)[:top_k]
+        latencies.append((time.perf_counter() - started) * 1000)
+        result_indices.append([int(cand[i]) for i in order])
+    return result_indices, summarize_latencies(latencies)
+
+
+def rerank_memory_mb(matrix: np.ndarray, use_fp16: bool) -> float:
+    nbytes = matrix.shape[0] * matrix.shape[1] * (2 if use_fp16 else 4)
+    return round(nbytes / 1024 / 1024, 4)
+
+
 def summarize_latencies(values: list[float]) -> dict:
     if not values:
         return {"avg_ms": 0.0, "p50_ms": 0.0, "p95_ms": 0.0, "p99_ms": 0.0}
@@ -155,6 +205,9 @@ def run_benchmark(dataset_id: int, query_count: int, top_k: int, seed: int) -> d
             "params": {},
             "build_seconds": 0.0,
             "ef_search": None,
+            "rerank_factor": None,
+            "use_fp16": None,
+            "memory_mb": round(matrix.nbytes / 1024 / 1024, 4),
             "recall_at_k": 1.0,
             **exact_latency,
         }
@@ -171,13 +224,40 @@ def run_benchmark(dataset_id: int, query_count: int, top_k: int, seed: int) -> d
                     "params": config["params"],
                     "build_seconds": build_seconds,
                     "ef_search": ef_search,
+                    "rerank_factor": None,
+                    "use_fp16": None,
+                    "memory_mb": 0.0,
                     "recall_at_k": recall_at_k(exact_results, hnsw_results, top_k),
                     **latency,
                 }
             )
 
+    # hnsw_rerank：HNSW 召回 + 精排向量重排；可选 fp16 节省内存
+    for cfg in HNSW_RERANK_CONFIGS:
+        index, build_seconds = build_hnsw(matrix, cfg["params"])
+        rerank_dtype = np.float16 if cfg["use_fp16"] else np.float32
+        rerank_vectors = matrix.astype(rerank_dtype, copy=False)
+        mem_mb = rerank_memory_mb(matrix, cfg["use_fp16"])
+        for ef_search in cfg["ef_search_values"]:
+            for rf in cfg["rerank_factors"]:
+                results_idx, latency = query_hnsw_rerank(index, rerank_vectors, queries, top_k, ef_search, rf)
+                records.append(
+                    {
+                        "name": cfg["name"],
+                        "index_type": "hnsw_rerank",
+                        "params": cfg["params"],
+                        "build_seconds": build_seconds,
+                        "ef_search": ef_search,
+                        "rerank_factor": rf,
+                        "use_fp16": cfg["use_fp16"],
+                        "memory_mb": mem_mb,
+                        "recall_at_k": recall_at_k(exact_results, results_idx, top_k),
+                        **latency,
+                    }
+                )
+
     best = max(
-        [item for item in records if item["index_type"] == "hnsw"],
+        [item for item in records if item["index_type"] != "flat"],
         key=lambda item: (item["recall_at_k"], -item["p95_ms"]),
     )
     return {
@@ -198,8 +278,12 @@ def run_benchmark(dataset_id: int, query_count: int, top_k: int, seed: int) -> d
         "records": records,
         "recommendation": {
             "name": best["name"],
+            "index_type": best.get("index_type"),
             "params": best["params"],
             "ef_search": best["ef_search"],
+            "rerank_factor": best.get("rerank_factor"),
+            "use_fp16": best.get("use_fp16"),
+            "memory_mb": best.get("memory_mb"),
             "recall_at_k": best["recall_at_k"],
             "p95_ms": best["p95_ms"],
             "reason": "highest recall@k, then lower p95 latency",
@@ -233,15 +317,19 @@ def render_markdown(result: dict) -> str:
         f"- Top-K: {benchmark['top_k']}",
         f"- Query count: {benchmark['query_count']}",
         "",
-        "| Name | Params | ef_search | Build(s) | Recall@K | Avg(ms) | P50(ms) | P95(ms) | P99(ms) |",
-        "|---|---|---:|---:|---:|---:|---:|---:|---:|",
+        "| Name | Type | Params | ef_search | rerank | fp16 | Mem(MB) | Build(s) | Recall@K | Avg(ms) | P50(ms) | P95(ms) | P99(ms) |",
+        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for item in result["records"]:
         lines.append(
-            "| {name} | `{params}` | {ef} | {build:.4f} | {recall:.4f} | {avg:.4f} | {p50:.4f} | {p95:.4f} | {p99:.4f} |".format(
+            "| {name} | {itype} | `{params}` | {ef} | {rf} | {fp16} | {mem:.4f} | {build:.4f} | {recall:.4f} | {avg:.4f} | {p50:.4f} | {p95:.4f} | {p99:.4f} |".format(
                 name=item["name"],
+                itype=item.get("index_type", "-"),
                 params=json.dumps(item["params"], ensure_ascii=False),
                 ef=item["ef_search"] if item["ef_search"] is not None else "-",
+                rf=item.get("rerank_factor") if item.get("rerank_factor") is not None else "-",
+                fp16="Y" if item.get("use_fp16") else ("N" if item.get("use_fp16") is False else "-"),
+                mem=float(item.get("memory_mb", 0.0)),
                 build=float(item["build_seconds"]),
                 recall=float(item["recall_at_k"]),
                 avg=float(item["avg_ms"]),

@@ -113,19 +113,33 @@ export function IndexesPage() {
   async function handleCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
+    // 多数据集联合索引：dataset_ids 用逗号分隔；为空则退化为单 dataset_id
+    const datasetIdsRaw = String(form.get("dataset_ids") || "").trim();
+    const datasetIds = datasetIdsRaw
+      ? datasetIdsRaw
+          .split(/[,，\s]+/)
+          .map((s) => Number(s.trim()))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      : [];
+    const primaryDatasetId = Number(form.get("dataset_id"));
+    const body: Record<string, unknown> = {
+      index_name: String(form.get("index_name") || "").trim(),
+      index_type: String(form.get("index_type") || "flat"),
+      metric: String(form.get("metric") || "l2"),
+      params_json: safeJsonParse(form.get("params_json"), {}),
+    };
+    if (datasetIds.length > 0) {
+      body.dataset_ids = datasetIds;
+    } else {
+      body.dataset_id = primaryDatasetId;
+    }
     try {
       const resp = await apiCall<{ index_id?: number; task_id?: string }>({
         baseUrl,
         token,
         path: "/indexes",
         method: "POST",
-        body: {
-          dataset_id: Number(form.get("dataset_id")),
-          index_name: String(form.get("index_name") || "").trim(),
-          index_type: String(form.get("index_type") || "flat"),
-          metric: String(form.get("metric") || "l2"),
-          params_json: safeJsonParse(form.get("params_json"), {}),
-        },
+        body,
       });
       if (resp.data.index_id) setSelectedIndexId(resp.data.index_id);
       showToast(`索引任务已创建：${resp.data.task_id ?? "-"}`, "success");
@@ -245,6 +259,7 @@ export function IndexesPage() {
                 <th>名称</th>
                 <th>类型</th>
                 <th>度量</th>
+                <th>数据集</th>
                 <th>版本</th>
                 <th>状态</th>
                 <th>性能指标</th>
@@ -266,6 +281,14 @@ export function IndexesPage() {
                     <td>{idx.index_name ?? "-"}</td>
                     <td>{idx.index_type ?? "-"}</td>
                     <td>{idx.metric_type ?? "-"}</td>
+                    <td>
+                      {(idx.dataset_ids && idx.dataset_ids.length > 0
+                        ? idx.dataset_ids
+                        : idx.dataset_id != null
+                          ? [idx.dataset_id]
+                          : []
+                      ).join(", ") || "-"}
+                    </td>
                     <td>{idx.version_no ?? "-"}</td>
                     <td>{statusLabel(idx.build_status ?? idx.status)}</td>
                     <td>
@@ -301,7 +324,7 @@ export function IndexesPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8}>
+                  <td colSpan={9}>
                     <div className="empty-state">暂无索引</div>
                   </td>
                 </tr>
@@ -324,7 +347,14 @@ export function IndexesPage() {
                 type="number"
                 min="1"
                 defaultValue={selectedDatasetId ?? ""}
-                required
+              />
+            </label>
+            <label>
+              <span>多数据集 IDs（联合索引）</span>
+              <input
+                name="dataset_ids"
+                type="text"
+                placeholder="如 1,2,3；填写时优先使用，覆盖上面单 ID"
               />
             </label>
             <label>
@@ -337,6 +367,7 @@ export function IndexesPage() {
                 <option value="flat">flat</option>
                 <option value="ivf_pq">ivf_pq</option>
                 <option value="hnsw">hnsw</option>
+                <option value="hnsw_rerank">hnsw_rerank (改进算法)</option>
               </select>
             </label>
             <label>

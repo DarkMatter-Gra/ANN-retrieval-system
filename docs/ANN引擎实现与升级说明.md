@@ -264,3 +264,100 @@ indices/{dataset_id}/v{version}/flat.meta.json
 - 后续前端可视化对接
 
 如果要进一步冲击“更高效”，优先做元数据过滤 bitmap 和真实 recall@k 评估。
+
+## 9. 自研改进算法：`hnsw_rerank`
+
+`hnsw_rerank` 是在原生 HNSW 之上落地的「召回 + 精排」两阶段改进，目标是同时优化检索精度、查询时间与内存占用。
+
+### 9.1 算法核心
+
+- 召回阶段：使用 HNSW `knn_query(k = top_k * rerank_factor)` 拉宽候选集（默认 `rerank_factor=4`，下限 `MIN_RERANK_FETCH=32`）。
+- 精排阶段：在小候选集合 `(<=64)` 内，用 `float32` 精确距离重排，取 Top-K。
+  - `l2`：平方欧氏
+  - `cosine`：归一化后取 `1 - cosine_similarity`
+  - `ip`：负内积
+- 内存优化：精排向量可保存为 `float16`（`use_fp16=True`），精排时再 `astype(float32)` 即时还原，相对全量 `float32` 节省 ≈50% 内存。
+- 自适应 `ef`：召回阶段会自动把 `ef_search` 抬高到 `max(ef_search, top_k * rerank_factor)`，避免候选窗口不足拉低召回。
+
+### 9.2 实现位置
+
+- 引擎：[ann_engine.py](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/backend/app/services/ann_engine.py)
+  - `SUPPORTED_INDEX_TYPES` 加入 `"hnsw_rerank"`
+  - `build()` 中保存 `.rerank.npy`（fp16/fp32）
+  - `_search_hnsw_rerank()` 实现两阶段检索
+- 任务：[index_tasks.py](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/backend/app/tasks/index_tasks.py)
+- 校验：`validate_config` 中 `M / ef_construction / ef / rerank_factor / use_fp16` 范围校验
+- 基准测试：[benchmark_ann.py](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/backend/scripts/benchmark_ann.py)
+  - 新增 `HNSW_RERANK_CONFIGS`、`query_hnsw_rerank()`、`rerank_memory_mb()`
+  - 报告新增 `Type / rerank / fp16 / Mem(MB)` 列，便于和 `flat` / `hnsw` 直接对比 `Recall@K`、`P50/P95/P99` 与内存
+
+### 9.3 期望效果
+
+| 维度 | 原生 HNSW | `hnsw_rerank` (fp32) | `hnsw_rerank` (fp16) |
+|---|---|---|---|
+| 检索精度 (Recall@K) | 受 `ef_search` 影响显著 | 接近 Flat 精确解 | 接近 Flat（精排仍是 fp32） |
+| 查询时间 | 最快 | +1 次 (top_k×factor)×dim 矩阵差分 | 同 fp32，多 1 次 `astype` |
+| 内存占用 | 仅 HNSW 图 | HNSW 图 + 全量 fp32 副本 | HNSW 图 + **fp16 副本（≈50%）** |
+
+参数推荐：
+
+- 一般场景：`{M:16, ef_construction:120, ef:64, rerank_factor:4, use_fp16:true}`
+- 高召回优先：`rerank_factor=8`，`use_fp16=false`
+- 内存敏感：`use_fp16=true`，`rerank_factor=4`
+
+### 9.4 验证方式
+
+```bash
+cd backend
+python scripts/benchmark_ann.py --dataset-id 1 --queries 200 --top-k 10
+```
+
+报告位于 `reports/ann_benchmark_<ds>_<ts>.md`，含 `flat` / `hnsw` / `hnsw_rerank_fp32` / `hnsw_rerank_fp16` 四组对比与“最佳推荐”。
+
+## 10. 多数据集联合检索
+
+支持把多个单细胞数据集联合建立一个 ANN 索引，实现跨数据集细胞搜索。
+
+### 10.1 数据模型
+
+- 新增列：`ann_indices.dataset_ids: JSON`（保留原 `dataset_id` 作为主数据集 / 文件路径 / 版本号锚点）
+- 迁移：[d18e2a3b9b21_add_dataset_ids_to_ann_indices.py](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/backend/migrations/versions/d18e2a3b9b21_add_dataset_ids_to_ann_indices.py)
+  - SQLite 通过 `batch_alter_table` 添加列
+  - 旧索引 backfill：`dataset_ids = '[' || dataset_id || ']'`
+
+### 10.2 构建流程
+
+- `POST /indexes` 接收 `dataset_ids: [int, ...]`（或单个 `dataset_id`，自动归一）
+- 校验：所有数据集 PCA 维度必须一致，否则拒绝
+- 任务：按 `dataset_id ASC, id ASC` 顺序拉取并合并所有数据集向量，整体构建一个 ANN 索引
+- `id_map.json` 每个条目同时记录 `cell_id` 与 `dataset_id`，避免不同数据集 `cell_id` 重名导致结果回查错位
+
+### 10.3 查询流程
+
+- `POST /search` 入参变更：
+  - `index_id` 必填
+  - `dataset_id` 改为可选（联合索引下允许跨数据集）
+  - 新增 `source_dataset_id`：指定 cell_id 解析所在数据集（cell_id 跨库重名时必填）
+  - 新增 `dataset_ids`：限定结果只来自该子集
+- 返回结果每条记录新增 `source_dataset_id`，标识匹配细胞来自哪个数据集
+- 响应新增 `index_dataset_ids` 字段，便于前端展示该索引覆盖的全部数据集
+
+### 10.4 涉及文件
+
+- 模型：[ann_index.py](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/backend/app/models/ann_index.py)（`dataset_ids` JSON 列）
+- Schema：[schemas/index.py](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/backend/app/schemas/index.py)、[schemas/search.py](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/backend/app/schemas/search.py)
+- 服务：[index_service.py](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/backend/app/services/index_service.py)、[search_service.py](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/backend/app/services/search_service.py)
+- 任务：[index_tasks.py](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/backend/app/tasks/index_tasks.py)
+- 引擎：[ann_engine.py](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/backend/app/services/ann_engine.py) (`write_id_map` 接受 `dataset_ids`、`read_id_map_entries`)
+- 前端：[IndexesPage.tsx](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/frontend/src/pages/IndexesPage.tsx)、[SearchPage.tsx](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/frontend/src/pages/SearchPage.tsx)、[types.ts](file:///Users/bytedance/Documents/大三下/软件工程/ann/ANN-retrieval-system/frontend/src/types.ts)
+
+### 10.5 升级数据库
+
+新增列需要运行迁移：
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+旧索引在升级后会被回填为 `dataset_ids=[原 dataset_id]`，单数据集行为完全兼容。
