@@ -3,6 +3,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { RoleRoute } from "./auth/RoleRoute";
 import { AppLayout } from "./layouts/AppLayout";
+import { AiSearchPage } from "./pages/AiSearchPage";
 import { BatchSearchPage } from "./pages/BatchSearchPage";
 import { BioinfoPage } from "./pages/BioinfoPage";
 import { ClinicalPage } from "./pages/ClinicalPage";
@@ -37,6 +38,7 @@ export default function App() {
             {/* All authenticated roles */}
             <Route path="/app/dashboard" element={<DashboardPage />} />
             <Route path="/app/search" element={<SearchPage />} />
+            <Route path="/app/ai-search" element={<AiSearchPage />} />
             <Route path="/app/visualization" element={<VisualizationPage />} />
             <Route path="/app/settings" element={<SettingsPage />} />
 

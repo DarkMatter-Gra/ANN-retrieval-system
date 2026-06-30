@@ -24,6 +24,10 @@ class Settings(BaseSettings):
 
     upload_chunk_size: int = 4 * 1024 * 1024
 
+    ark_api_key: str = ""
+    ark_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
+    ark_model: str = "doubao-seed-2-0-mini-260428"
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )

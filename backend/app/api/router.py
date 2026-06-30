@@ -14,6 +14,7 @@ from app.api.v1 import (
     clinical,
     research,
     ops,
+    ai,
 )
 
 api_router = APIRouter()
@@ -30,3 +31,4 @@ api_router.include_router(reports.router)
 api_router.include_router(clinical.router)
 api_router.include_router(research.router)
 api_router.include_router(ops.router)
+api_router.include_router(ai.router)
