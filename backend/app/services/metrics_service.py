@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ann_index import ANNIndex
 from app.models.search_task import SearchTask
+from app.models.user import User
 
 
 _TIME_RANGE_MAP = {
@@ -23,6 +24,7 @@ class MetricsService:
         self,
         index_id: int | None = None,
         time_range: str = "1h",
+        current_user: User | None = None,
     ) -> dict:
         delta = _TIME_RANGE_MAP.get(time_range, _TIME_RANGE_MAP["1h"])
         since = datetime.now(timezone.utc) - delta
@@ -34,6 +36,8 @@ class MetricsService:
         )
         if index_id is not None:
             query = query.filter(SearchTask.index_id == index_id)
+        if current_user is not None and current_user.role == "dev":
+            query = query.filter(SearchTask.owner_user_id == current_user.id)
         tasks = query.order_by(SearchTask.id.desc()).limit(2000).all()
 
         progresses = [t.progress for t in tasks if t.progress]
@@ -53,10 +57,11 @@ class MetricsService:
             return float(data[k])
 
         seconds = max(delta.total_seconds(), 1.0)
-        index_count = self.db.query(ANNIndex).count()
-        loaded_count = (
-            self.db.query(ANNIndex).filter(ANNIndex.is_loaded.is_(True)).count()
-        )
+        index_query = self.db.query(ANNIndex)
+        if current_user is not None and current_user.role == "dev":
+            index_query = index_query.filter(ANNIndex.owner_user_id == current_user.id)
+        index_count = index_query.count()
+        loaded_count = index_query.filter(ANNIndex.is_loaded.is_(True)).count()
 
         return {
             "index_id": index_id,

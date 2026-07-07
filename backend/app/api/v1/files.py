@@ -35,7 +35,10 @@ def download_export(
     task = db.query(SearchTask).filter(SearchTask.task_id == task_id).first()
     if not task:
         raise TaskNotFoundError()
-    if current_user.role != "admin" and task.owner_user_id != current_user.id:
+    if (
+        current_user.role not in {"admin", "auditor"}
+        and task.owner_user_id != current_user.id
+    ):
         raise ResourceForbiddenError()
 
     media_type = "text/csv" if path.suffix == ".csv" else "application/x-ndjson"
@@ -67,7 +70,10 @@ def download_report(
     report = json.loads(json_path.read_text(encoding="utf-8"))
     owner_user_id = report.get("owner_user_id")
     if owner_user_id is not None:
-        if current_user.role != "admin" and int(owner_user_id) != current_user.id:
+        if (
+            current_user.role not in {"admin", "auditor"}
+            and int(owner_user_id) != current_user.id
+        ):
             raise ResourceForbiddenError()
         media_type = "application/pdf" if path.suffix == ".pdf" else "application/json"
         return FileResponse(path, media_type=media_type, filename=path.name)
@@ -76,7 +82,10 @@ def download_report(
     task = db.query(SearchTask).filter(SearchTask.task_id == query_id).first()
     if not task:
         raise TaskNotFoundError()
-    if current_user.role != "admin" and task.owner_user_id != current_user.id:
+    if (
+        current_user.role not in {"admin", "auditor"}
+        and task.owner_user_id != current_user.id
+    ):
         raise ResourceForbiddenError()
 
     media_type = "application/pdf" if path.suffix == ".pdf" else "application/json"

@@ -91,17 +91,18 @@ class AuthService:
                 "index",
                 "visualization",
                 "metrics",
+                "report",
                 "user",
                 "audit",
             ]
         if role == "dev":
-            return ["dataset", "search", "index", "visualization", "metrics"]
+            return ["dataset", "search", "index", "visualization", "metrics", "report"]
         if role == "user":
-            return ["dataset", "search", "visualization"]
+            return ["dataset", "search", "visualization", "report"]
         if role == "readonly":
             return ["dataset", "search", "visualization"]
         if role == "service":
-            return ["search"]
+            return ["search", "task"]
         if role == "auditor":
-            return ["dataset", "search", "visualization", "metrics", "audit"]
+            return ["dataset", "visualization", "metrics", "report", "audit"]
         return ["dataset", "search"]

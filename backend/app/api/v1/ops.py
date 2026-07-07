@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from app.api.deps import get_db
+from app.api.deps import get_db, require_roles
 from app.models.search_task import SearchTask
+from app.models.user import User
 from app.utils.response import success
 from datetime import datetime
 import psutil
@@ -11,7 +12,7 @@ router = APIRouter(prefix="/ops", tags=["Ops Features"])
 
 
 @router.get("/resource-monitor")
-def get_resource_monitor():
+def get_resource_monitor(_: User = Depends(require_roles("admin"))):
     """1. 实时资源监控 - 使用 psutil 获取真实指标"""
     cpu_usage = psutil.cpu_percent(interval=0.5)
     memory_info = psutil.virtual_memory()
@@ -33,7 +34,10 @@ def get_resource_monitor():
 
 
 @router.get("/alerts")
-def get_alerts(db: Session = Depends(get_db)):
+def get_alerts(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles("admin")),
+):
     """2. 服务告警管理 - 查询失败的任务"""
     failed_tasks = (
         db.query(SearchTask)
@@ -47,7 +51,9 @@ def get_alerts(db: Session = Depends(get_db)):
         alerts.append(
             {
                 "id": t.id,
-                "level": "critical" if t.task_type == "preprocess" else "warning",
+                "level": "critical"
+                if t.task_type == "preprocess_dataset"
+                else "warning",
                 "message": t.error_message or f"Task {t.task_id} failed",
                 "status": "active",
                 "time": t.finished_at or t.started_at or "Unknown",
@@ -57,7 +63,11 @@ def get_alerts(db: Session = Depends(get_db)):
 
 
 @router.post("/alerts/{alert_id}/resolve")
-def resolve_alert(alert_id: int, db: Session = Depends(get_db)):
+def resolve_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles("admin")),
+):
     task = db.query(SearchTask).filter(SearchTask.id == alert_id).first()
     if task:
         task.status = "resolved"  # Assuming we mark it as resolved in the DB
@@ -66,7 +76,7 @@ def resolve_alert(alert_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/auto-scaling")
-def get_auto_scaling_status():
+def get_auto_scaling_status(_: User = Depends(require_roles("admin"))):
     """3. 自动扩缩容 - 真实的服务器 CPU 核数与内存"""
     cpu_count = psutil.cpu_count()
     return success(
@@ -82,7 +92,10 @@ def get_auto_scaling_status():
 
 
 @router.post("/auto-scaling")
-def update_auto_scaling(config: dict):
+def update_auto_scaling(
+    config: dict,
+    _: User = Depends(require_roles("admin")),
+):
     return success(
         {
             "status": "success",
@@ -93,7 +106,7 @@ def update_auto_scaling(config: dict):
 
 
 @router.get("/logs")
-def get_logs(keyword: str = ""):
+def get_logs(keyword: str = "", _: User = Depends(require_roles("admin"))):
     """4. 日志聚合与查询 - 读取真实日志文件（如果有的话）"""
     logs = []
     log_file = "app.log"
@@ -132,9 +145,11 @@ def get_logs(keyword: str = ""):
 
 
 @router.get("/performance-dashboard")
-def get_performance_dashboard(db: Session = Depends(get_db)):
-    """5. 实时性能监控大盘 - 从真实任务中计算 QPS 和 Latency"""
-    # 查找最近的 search 任务
+def get_performance_dashboard(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles("admin")),
+):
+    """实时性能监控大盘：从最近 search 任务中计算趋势。"""
     recent_tasks = (
         db.query(SearchTask)
         .filter(SearchTask.task_type == "search")
@@ -148,8 +163,9 @@ def get_performance_dashboard(db: Session = Depends(get_db)):
     timestamps = []
 
     for t in reversed(recent_tasks):
-        qps_trend.append(1)  # 简化计算
-        latency_trend.append(50)  # 假设毫秒
+        payload = t.request_payload or {}
+        qps_trend.append(1)
+        latency_trend.append(float(payload.get("latency_ms") or 0))
         timestamps.append(t.started_at[-8:] if t.started_at else "Now")
 
     if not qps_trend:

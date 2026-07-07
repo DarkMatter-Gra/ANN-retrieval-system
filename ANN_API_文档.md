@@ -64,7 +64,7 @@
 
 - **权限要求：** 无需鉴权
 
-- **接口说明：** 创建新用户账号，并指定初始角色。
+- **接口说明：** 创建新用户账号。`role` 未传时后端默认创建 `user` 角色；前端注册页固定使用 `user`，其他角色建议由管理员在用户管理页调整。
 
 **请求参数**
 
@@ -72,7 +72,7 @@
 | --- | --- | --- | --- |
 | `username` | string | 是 | 用户名，长度 3-64，建议仅使用字母、数字、下划线 |
 | `password` | string | 是 | 密码，长度 8-128 |
-| `role` | enum | 是 | 可选值：`admin`、`dev`、`user`、`readonly`、`service`、`auditor` |
+| `role` | enum | 否 | 可选值：`admin`、`dev`、`user`、`readonly`、`service`、`auditor`；默认 `user` |
 | `email` | string | 是 | 邮箱地址，用于账号绑定与通知 |
 
 **响应字段**
@@ -612,7 +612,7 @@
 | --- | --- | --- |
 | `data.dataset_id` | int | 新生成的数据集 ID |
 | `data.task_id` | string | 预处理异步任务 ID |
-| `data.status` | string | 初始状态，示例：`preprocessing` |
+| `data.status` | string | 初始任务状态，当前实现返回 `pending` |
 
 **请求示例**
 
@@ -639,7 +639,7 @@
   "data": {
     "dataset_id": 12,
     "task_id": "task_xyz",
-    "status": "preprocessing"
+    "status": "pending"
   }
 }
 ```
@@ -889,7 +889,7 @@
 | 字段名 | 类型 | 说明 |
 | --- | --- | --- |
 | `data.steps[]` | object[] | 预处理步骤日志数组 |
-| `data.steps[].step` | string | 步骤名称，如 `format_check`、`qc`、`preprocess` |
+| `data.steps[].step` | string | 步骤名称，如 `format_check`、`qc`、`preprocess_dataset` |
 | `data.steps[].status` | string | 步骤执行状态 |
 | `data.steps[].duration_ms` | int | 耗时，单位毫秒 |
 | `data.warnings[]` | string[] | 预处理告警信息 |
@@ -926,7 +926,7 @@
         "duration_ms": 3400
       },
       {
-        "step": "preprocess",
+        "step": "preprocess_dataset",
         "status": "done",
         "duration_ms": 15000
       }
@@ -1367,16 +1367,16 @@
 
 - **请求方式 + 路径：** `POST /search`
 
-- **权限要求：** `admin` / `dev` / `user` / `readonly` / `service` / `auditor`
+- **权限要求：** `admin` / `dev` / `user` / `readonly` / `service`
 
-- **接口说明：** 支持基于 `cell_id` 或向量执行单次近似/精确检索，可附带过滤条件与检索参数。
+- **接口说明：** 支持基于 `cell_id` 或向量执行单次近似/精确检索，可附带过滤条件与检索参数。`admin` 可访问全部索引；索引 owner 可访问自己的索引；`dev` / `user` / `readonly` / `service` 可消费已发布（`published`）索引。
 
 **请求参数**
 
 | 字段名 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
 | `Authorization (Header)` | string | 是 | 格式：`Bearer <token>` |
-| `dataset_id` | int | 是 | 数据集 ID |
+| `dataset_id` | int | 条件必填 | 数据集 ID。普通单数据集检索建议必填；联合索引场景可由索引推断 |
 | `index_id` | int | 是 | 索引 ID |
 | `query_type` | enum | 是 | 可选：`cell_id`、`vector` |
 | `cell_id` | string | 条件必填 | 当 `query_type=cell_id` 时必填 |
@@ -1401,8 +1401,9 @@
 | `data.results[].distance` | float | 距离值 |
 | `data.results[].cell_type` | string | 细胞类型标签 |
 | `data.results[].organ` | string | 器官标签 |
+| `data.results[].source_dataset_id` | int | 命中细胞来源数据集 ID |
 | `data.highlight_points.query` | float[] | 查询点二维投影坐标 |
-| `data.highlight_points.neighbors[]` | float[][] | 邻居点二维投影坐标 |
+| `data.highlight_points.neighbors[]` | object[] | 邻居点二维投影坐标，元素包含 `cell_id` 与 `point` |
 
 **请求示例**
 
@@ -1621,16 +1622,16 @@
 
 - **请求方式 + 路径：** `GET /tasks/{task_id}/export`
 
-- **权限要求：** `admin` / `dev` / `user` / `service`
+- **权限要求：** 已登录用户；需为任务 owner，或角色为 `admin` / `auditor`
 
-- **接口说明：** 下载批量检索或报告导出任务的生成结果。
+- **接口说明：** 下载批量检索任务的生成结果。`format=json` 返回 JSONL 文件下载地址，`format=csv` 返回 CSV 文件下载地址。诊断报告 PDF/JSON 通过报告生成响应或 `/files/reports/{filename}` 下载。
 
 **请求参数**
 
 | 字段名 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
 | `task_id (Path)` | string | 是 | 任务 ID |
-| `format (Query)` | string | 是 | 导出格式，例如 `csv` 或 `pdf` |
+| `format (Query)` | string | 是 | 导出格式：`json` 或 `csv`；`json` 对应 `.jsonl` 文件 |
 | `Authorization (Header)` | string | 是 | 格式：`Bearer <token>` |
 
 **响应字段**
@@ -1638,6 +1639,8 @@
 | 字段名 | 类型 | 说明 |
 | --- | --- | --- |
 | `data.download_url` | string | 导出文件下载地址 |
+| `data.format` | string | 请求的导出格式 |
+| `data.filename` | string | 实际生成的文件名 |
 
 **请求示例**
 
@@ -1658,7 +1661,9 @@
   "code": 0,
   "message": "ok",
   "data": {
-    "download_url": "/api/v1/files/exports/task_batch_001.csv"
+    "download_url": "/api/v1/files/exports/task_batch_001.csv",
+    "format": "csv",
+    "filename": "task_batch_001.csv"
   }
 }
 ```
@@ -1704,11 +1709,10 @@
 | `data.points[]` | object[] | 二维点位数组 |
 | `data.points[].cell_id` | string | 细胞 ID |
 | `data.points[].x` / `data.points[].y` | float | 二维坐标值 |
-| `data.points[].color_label` | string | 颜色映射标签 |
 | `data.total` | int | 总点位数 |
-| `data.legend[]` | object[] | 图例数组 |
-| `data.legend[].label` | string | 标签名称 |
-| `data.legend[].color` | string | 十六进制颜色值 |
+| `data.legend[]` | string[] | 当前页内的图例标签数组 |
+| `data.method` | string | 降维方法 |
+| `data.color_fields[]` | string[] | 支持着色的字段列表 |
 
 **请求示例**
 
@@ -1732,18 +1736,17 @@
     "points": [
       {
         "cell_id": "cell_000001",
-        "x": 0.128,
-        "y": -1.205,
-        "color_label": "T_cell"
+        "UMAP1": 0.128,
+        "UMAP2": -1.205,
+        "cell_type": "T_cell",
+        "organ": "liver",
+        "sample_id": "sample_1"
       }
     ],
     "total": 2700,
-    "legend": [
-      {
-        "label": "T_cell",
-        "color": "#FF6B6B"
-      }
-    ]
+    "legend": ["T_cell"],
+    "method": "umap",
+    "color_fields": ["cell_type", "organ", "sample_id"]
   }
 }
 ```
@@ -1776,16 +1779,13 @@
 
 | 字段名 | 类型 | 说明 |
 | --- | --- | --- |
-| `data.query_point` | object | 查询点坐标信息 |
-| `data.query_point.cell_id` | string | 查询细胞 ID |
-| `data.query_point.x` / `data.query_point.y` | float | 查询点二维坐标 |
-| `data.neighbor_points[]` | object[] | 命中邻居点列表 |
-| `data.neighbor_points[].rank` | int | 结果排名 |
-| `data.neighbor_points[].cell_id` | string | 邻居细胞 ID |
-| `data.neighbor_points[].x` / `data.neighbor_points[].y` | float | 邻居点二维坐标 |
-| `data.neighbor_points[].score` | float | 相似度得分 |
-| `data.summary.total_neighbors` | int | 邻居总数 |
-| `data.summary.avg_score` | float | 平均相似度 |
+| `data.query_id` | string | 检索查询 ID |
+| `data.dataset_id` | int | 查询所属数据集 ID |
+| `data.query_cell_id` | string/null | 查询细胞 ID；向量查询时可为空 |
+| `data.query` | float[]/null | 查询点二维坐标 |
+| `data.neighbors[]` | object[] | 命中邻居点列表 |
+| `data.neighbors[].cell_id` | string | 邻居细胞 ID |
+| `data.neighbors[].point` | float[] | 邻居点二维坐标 |
 
 **请求示例**
 
@@ -1806,24 +1806,16 @@
   "code": 0,
   "message": "ok",
   "data": {
-    "query_point": {
-      "cell_id": "cell_000981",
-      "x": 0.128,
-      "y": -1.205
-    },
-    "neighbor_points": [
+    "query_id": "q_20260521_001",
+    "dataset_id": 12,
+    "query_cell_id": "cell_000981",
+    "query": [0.128, -1.205],
+    "neighbors": [
       {
-        "rank": 1,
         "cell_id": "cell_018723",
-        "x": 0.121,
-        "y": -1.19,
-        "score": 0.9841
+        "point": [0.121, -1.19]
       }
-    ],
-    "summary": {
-      "total_neighbors": 20,
-      "avg_score": 0.921
-    }
+    ]
   }
 }
 ```
@@ -1843,14 +1835,14 @@
 
 - **权限要求：** `admin` / `dev` / `auditor`
 
-- **接口说明：** 查询指定索引在一段时间窗口内的检索性能指标，包括延迟、QPS、CPU 与内存。
+- **接口说明：** 查询指定索引在一段时间窗口内的检索性能指标，包括延迟分位数、QPS、任务平均进度和索引加载统计。CPU 与内存属于系统运维大盘接口，不由本接口返回。
 
 **请求参数**
 
 | 字段名 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
-| `index_id (Query)` | int | 是 | 索引 ID |
-| `time_range (Query)` | enum | 是 | 可选：`1h`、`6h`、`24h`、`7d` |
+| `index_id (Query)` | int | 否 | 索引 ID；不传时统计当前用户可见范围内的全部检索任务 |
+| `time_range (Query)` | enum | 否 | 可选：`1h`、`6h`、`24h`、`7d`，默认 `1h` |
 | `Authorization (Header)` | string | 是 | 格式：`Bearer <token>` |
 
 **响应字段**
@@ -1861,8 +1853,9 @@
 | `data.p95` | int | P95 延迟，单位 ms |
 | `data.p99` | int | P99 延迟，单位 ms |
 | `data.qps` | float | 每秒查询数 |
-| `data.cpu` | float | CPU 使用率，单位 % |
-| `data.memory` | float | 内存使用量，单位 MB |
+| `data.avg_progress` | float | 当前统计窗口内任务平均进度 |
+| `data.indexes_total` | int | 索引总数 |
+| `data.indexes_loaded` | int | 已加载索引数量 |
 
 **请求示例**
 
@@ -1887,8 +1880,9 @@
     "p95": 450,
     "p99": 980,
     "qps": 12.5,
-    "cpu": 34.2,
-    "memory": 512.8
+    "avg_progress": 100,
+    "indexes_total": 3,
+    "indexes_loaded": 1
   }
 }
 ```
@@ -1907,24 +1901,32 @@
 
 - **请求方式 + 路径：** `POST /reports/diagnostic`
 
-- **权限要求：** `admin` / `dev` / `auditor`
+- **权限要求：** `admin` / `dev` / `user` / `auditor`
 
-- **接口说明：** 基于查询结果生成诊断报告，完成后通过任务查询与导出接口获取 PDF。
+- **接口说明：** 基于查询结果、数据集或索引生成诊断报告。请求至少提供 `query_id`、`dataset_id`、`index_id` 三者之一；若只传 `index_id`，后端会从索引推断 `dataset_id`。报告生成后通过响应字段或任务查询结果中的下载地址获取 PDF/JSON。
 
 **请求参数**
 
 | 字段名 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
 | `Authorization (Header)` | string | 是 | 格式：`Bearer <token>` |
-| `query_id` | string | 是 | 查询 ID |
-| `include_umap_snapshot` | boolean | 是 | 是否将 UMAP 快照纳入报告 |
+| `query_id` | string | 否 | 查询 ID；用于在报告中包含本次检索结果和高亮快照 |
+| `dataset_id` | int | 否 | 数据集 ID；不传时可从 `query_id` 或 `index_id` 推断 |
+| `index_id` | int | 否 | 索引 ID |
+| `include_umap_snapshot` | boolean | 否 | 是否将 UMAP 快照纳入报告，默认 `false` |
+| `include_qc` | boolean | 否 | 是否包含 QC 报告，默认 `true` |
+| `include_performance` | boolean | 否 | 是否包含性能报告，默认 `true` |
+| `title` | string | 否 | 报告标题 |
+| `note` | string | 否 | 报告备注 |
 
 **响应字段**
 
 | 字段名 | 类型 | 说明 |
 | --- | --- | --- |
 | `data.task_id` | string | 报告生成任务 ID |
-| `data.status` | string | 任务初始状态，通常为 `pending` |
+| `data.status` | string | 任务状态；eager 模式下可能直接为 `done` |
+| `data.download_url` | string | PDF 下载地址，报告完成后返回 |
+| `data.json_download_url` | string | JSON 报告下载地址，报告完成后返回 |
 
 **请求示例**
 
@@ -1938,6 +1940,8 @@
   },
   "body": {
     "query_id": "q_20260521_001",
+    "dataset_id": 12,
+    "index_id": 7,
     "include_umap_snapshot": true
   }
 }
@@ -1951,7 +1955,9 @@
   "message": "ok",
   "data": {
     "task_id": "task_report_001",
-    "status": "pending"
+    "status": "done",
+    "download_url": "/api/v1/files/reports/diagnostic_12_task_report_001.pdf",
+    "json_download_url": "/api/v1/files/reports/diagnostic_12_task_report_001.json"
   }
 }
 ```
@@ -1960,7 +1966,7 @@
 
 | 错误码 | 说明 |
 | --- | --- |
-| `40001` | 缺少 `query_id` |
+| `40001` | 未提供 `query_id`、`dataset_id` 或 `index_id`，或无法推断数据集 |
 | `40404` | 查询结果不存在，无法生成诊断报告 |
 | `50004` | 报告生成或文件输出失败 |
 
@@ -1997,11 +2003,11 @@
 | 角色 | 用户管理 | 数据集管理 | 索引管理 | 检索任务 | 可视化指标 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- |
 | `admin` | 全部 | 全部 | 全部 | 全部 | 全部 | 系统最高权限 |
-| `dev` | 无 | 上传/查看/删除/日志 | 创建/查看/加载 | 全部 | 全部 | 不可执行用户管理、索引发布与回滚 |
-| `user` | 无 | 上传/查看/本人删除 | 仅消费已存在索引 | 单次/批量检索 | 查看 | 不可执行 `load` / `publish` / `rollback` |
+| `dev` | 无 | 上传/查看/删除/日志 | 创建/查看/加载 | 单次/批量检索 | 可视化/指标/报告 | 不可执行用户管理、索引发布与回滚；可消费自己索引和已发布索引 |
+| `user` | 无 | 上传/查看/本人删除 | 仅消费已发布索引 | 单次/批量检索 | 可视化/报告 | 不可执行 `load` / `publish` / `rollback` |
 | `readonly` | 无 | 列表/详情/日志（只读） | 无 | 单次检索/任务只读 | 查看 | 不允许写操作 |
 | `service` | 无 | 无 | 无 | `/search`、`/batch-search`、`/tasks` | 高亮结果查询 | 用于程序化调用 |
-| `auditor` | 无 | 列表/详情/日志（只读） | 指标查看 | 任务只读 | 查看/报告生成 | 额外具备审计日志查看能力（接口未在本版列出） |
+| `auditor` | 无 | 列表/详情/日志（只读） | 指标查看 | 任务只读，不执行检索 | 可视化/指标/报告生成 | 额外具备审计日志查看能力（接口未在本版列出） |
 
 ## 八、补充说明
 

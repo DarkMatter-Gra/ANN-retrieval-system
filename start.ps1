@@ -195,7 +195,7 @@ function Ensure-FrontendDependencies {
   )
 
   if ($ReinstallFrontend -or -not (Test-Path (Join-Path $frontendRoot 'node_modules')) -or (Test-NeedsInstall -StampPath $frontendStamp -SourcePaths $sources)) {
-    Invoke-External -FilePath 'npm' -Arguments @('install') -WorkingDirectory $frontendRoot -Description 'Install frontend dependencies'
+    Invoke-External -FilePath 'npm' -Arguments @('install', '--registry=https://registry.npmjs.org/', '--replace-registry-host=always') -WorkingDirectory $frontendRoot -Description 'Install frontend dependencies'
     New-Item -ItemType File -Path $frontendStamp -Force | Out-Null
   }
 }
@@ -224,7 +224,7 @@ function Start-DetachedScript {
     '-NoExit',
     '-ExecutionPolicy', 'Bypass',
     '-File', $ScriptPath
-  ) -WorkingDirectory $WorkingDirectory | Out-Null
+  ) -WorkingDirectory $WorkingDirectory -WindowStyle Hidden | Out-Null
 }
 
 if (-not (Test-Path $backendRoot)) {

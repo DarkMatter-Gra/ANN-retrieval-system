@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from app.api.deps import get_db
+from app.api.deps import get_db, require_roles
 from app.models.dataset import ExpressionMetadata
 from app.models.ann_index import ANNIndex
 from app.models.user import User
@@ -11,10 +11,15 @@ router = APIRouter(prefix="/research", tags=["Research Features"])
 
 
 @router.post("/auto-tune")
-def auto_tune(db: Session = Depends(get_db)):
-    """1. 索引参数自动调优"""
-    # 获取系统中所有的索引进行调优建议
-    indices = db.query(ANNIndex).all()
+def auto_tune(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "dev")),
+):
+    """索引参数自动调优：基于现有索引类型给出启发式建议。"""
+    query = db.query(ANNIndex)
+    if current_user.role != "admin":
+        query = query.filter(ANNIndex.owner_user_id == current_user.id)
+    indices = query.all()
     tuning_results = []
     for idx in indices:
         if idx.index_type == "hnsw":
@@ -29,6 +34,7 @@ def auto_tune(db: Session = Depends(get_db)):
                 "index_name": idx.index_name,
                 "index_type": idx.index_type,
                 "recommended_params": rec,
+                "method": "heuristic_by_index_type",
             }
         )
     return success(
@@ -41,9 +47,15 @@ def auto_tune(db: Session = Depends(get_db)):
 
 
 @router.post("/benchmark")
-def benchmark(db: Session = Depends(get_db)):
-    """2. 多算法对比基准"""
-    indices = db.query(ANNIndex).all()
+def benchmark(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "dev")),
+):
+    """多算法对比基准摘要：返回已有索引记录，不伪造实时压测结果。"""
+    query = db.query(ANNIndex)
+    if current_user.role != "admin":
+        query = query.filter(ANNIndex.owner_user_id == current_user.id)
+    indices = query.all()
     results = []
     for idx in indices:
         results.append(
@@ -52,7 +64,8 @@ def benchmark(db: Session = Depends(get_db)):
                 "algorithm": idx.index_type,
                 "recall": idx.recall_score,
                 "memory_mb": idx.memory_cost_mb,
-                "qps_estimate": 1000 if idx.index_type == "hnsw" else 500,
+                "qps_estimate": None,
+                "note": "实时 benchmark 请运行 backend/scripts/benchmark_ann.py",
             }
         )
     return success(
@@ -65,7 +78,10 @@ def benchmark(db: Session = Depends(get_db)):
 
 
 @router.get("/data-versions")
-def data_versions(db: Session = Depends(get_db)):
+def data_versions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin")),
+):
     """3. 数据版本管理"""
     datasets = (
         db.query(ExpressionMetadata)
@@ -89,7 +105,10 @@ def data_versions(db: Session = Depends(get_db)):
 
 
 @router.get("/data-lineage")
-def data_lineage(db: Session = Depends(get_db)):
+def data_lineage(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin")),
+):
     """4. 数据沿袭追踪"""
     datasets = (
         db.query(ExpressionMetadata)
@@ -112,7 +131,10 @@ def data_lineage(db: Session = Depends(get_db)):
 
 
 @router.get("/tenant-isolation")
-def tenant_isolation(db: Session = Depends(get_db)):
+def tenant_isolation(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin")),
+):
     """5. 跨租户数据隔离配置"""
     users = db.query(User).all()
     roles = {}
@@ -130,14 +152,15 @@ def tenant_isolation(db: Session = Depends(get_db)):
 
 
 @router.post("/public-db-sync")
-def public_db_sync(db: Session = Depends(get_db)):
-    """6. 公共数据库同步"""
-    # 模拟创建一个真实的数据库记录
+def public_db_sync(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin")),
+):
+    """公共数据库同步占位：当前版本未接入 GEO/ENCODE 下载器。"""
     return success(
         {
-            "task_id": "SYNC-TASK-001",
             "target_databases": ["GEO", "ENCODE"],
-            "status": "started",
-            "message": "Public DB synchronization task has been scheduled.",
+            "status": "not_configured",
+            "message": "当前版本未配置公共数据库同步任务；请勿将此接口视为已完成同步。",
         }
     )

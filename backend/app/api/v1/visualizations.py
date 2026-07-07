@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_db, require_roles
 from app.core.exceptions import ParamOutOfRangeError
 from app.models.user import User
 from app.services.visualization_service import VisualizationService
@@ -19,7 +19,9 @@ def embedding(
     color_by: str | None = None,
     bbox: str | None = Query(None, description="x_min,y_min,x_max,y_max"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        require_roles("admin", "dev", "user", "readonly", "auditor")
+    ),
 ):
     bbox_tuple = None
     if bbox:
@@ -43,6 +45,8 @@ def embedding(
 def highlights(
     query_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        require_roles("admin", "dev", "user", "readonly", "service", "auditor")
+    ),
 ):
     return success(VisualizationService(db).get_highlights(query_id, current_user))

@@ -36,7 +36,10 @@ class TaskService:
         task = self.db.query(SearchTask).filter(SearchTask.task_id == task_id).first()
         if not task:
             raise TaskNotFoundError()
-        if current_user.role != "admin" and task.owner_user_id != current_user.id:
+        if (
+            current_user.role not in {"admin", "auditor"}
+            and task.owner_user_id != current_user.id
+        ):
             raise ResourceForbiddenError()
         return task
 

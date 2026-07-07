@@ -78,8 +78,8 @@ export default function App() {
               <Route path="/app/metrics" element={<MetricsPage />} />
             </Route>
 
-            {/* Reports: admin, user, auditor */}
-            <Route element={<RoleRoute roles={["admin", "user", "auditor"]} />}>
+            {/* Reports: admin, dev, user, auditor */}
+            <Route element={<RoleRoute roles={["admin", "dev", "user", "auditor"]} />}>
               <Route path="/app/reports" element={<ReportsPage />} />
             </Route>
 

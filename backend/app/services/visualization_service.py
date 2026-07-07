@@ -32,7 +32,10 @@ class VisualizationService:
         )
         if not dataset or dataset.deleted_flag:
             raise DatasetNotFoundError()
-        if current_user.role != "admin" and dataset.owner_user_id != current_user.id:
+        if (
+            current_user.role not in {"admin", "auditor"}
+            and dataset.owner_user_id != current_user.id
+        ):
             raise ResourceForbiddenError()
         return dataset
 

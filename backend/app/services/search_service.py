@@ -191,13 +191,18 @@ class SearchService:
             raise IndexNotFoundError()
         if index_obj.build_status != "done":
             raise ConflictError("index unavailable")
-        if current_user.role != "admin" and index_obj.owner_user_id != current_user.id:
-            raise ResourceForbiddenError()
         if requested_dataset_id is not None:
             index_datasets = set(index_obj.dataset_ids or [index_obj.dataset_id])
             if int(requested_dataset_id) not in index_datasets:
                 raise IndexNotFoundError()
-        return index_obj
+        if current_user.role == "admin" or index_obj.owner_user_id == current_user.id:
+            return index_obj
+        if (
+            current_user.role in {"dev", "user", "readonly", "service"}
+            and index_obj.publish_status == "published"
+        ):
+            return index_obj
+        raise ResourceForbiddenError()
 
     def _load_query_vector(self, index_obj: ANNIndex, payload: dict) -> np.ndarray:
         if payload["query_type"] == "vector":

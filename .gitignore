@@ -47,6 +47,10 @@ pnpm-debug.log*
 /indices/
 /exports/
 /reports/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 
 # Backend runtime data
 backend/data/

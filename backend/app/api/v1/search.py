@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_db, require_roles
 from app.models.user import User
 from app.schemas.search import BatchSearchRequest, SearchRequest
 from app.services.search_service import SearchService
@@ -14,7 +14,9 @@ router = APIRouter(tags=["Search"])
 def search(
     payload: SearchRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        require_roles("admin", "dev", "user", "service", "readonly")
+    ),
 ):
     return success(SearchService(db).search(current_user, payload.model_dump()))
 
@@ -23,7 +25,7 @@ def search(
 def batch_search(
     payload: BatchSearchRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("admin", "dev", "user", "service")),
 ):
     return success(
         SearchService(db).create_batch_task(current_user, payload.model_dump())

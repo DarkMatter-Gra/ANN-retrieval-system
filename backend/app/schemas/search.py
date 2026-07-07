@@ -22,7 +22,7 @@ class SearchRequest(BaseModel):
 
 
 class BatchSearchRequest(BaseModel):
-    dataset_id: int | None = None
+    dataset_id: int
     dataset_ids: list[int] | None = None
     index_id: int
     queries: list[dict[str, Any]] = Field(min_length=1)

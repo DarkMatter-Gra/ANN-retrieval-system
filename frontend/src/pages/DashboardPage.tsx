@@ -119,7 +119,7 @@ const LINK_GROUPS: LinkGroup[] = [
         path: "/app/reports",
         label: "诊断报告",
         desc: "系统质量诊断报告",
-        roles: ["admin", "user", "auditor"],
+        roles: ["admin", "dev", "user", "auditor"],
       },
     ],
   },

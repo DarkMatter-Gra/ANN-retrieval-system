@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     app_env: str = "dev"
     api_v1_prefix: str = "/api/v1"
 
-    secret_key: str = "change-me-in-prod"
+    secret_key: str = "change-me-in-dev-use-env-secret-32-bytes-minimum"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 3
 

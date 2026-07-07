@@ -146,7 +146,7 @@ class DatasetService:
         query = self.db.query(ExpressionMetadata).filter(
             ExpressionMetadata.deleted_flag.is_(False)
         )
-        if current_user.role != "admin":
+        if current_user.role not in {"admin", "auditor"}:
             query = query.filter(ExpressionMetadata.owner_user_id == current_user.id)
         if keyword:
             query = query.filter(ExpressionMetadata.dataset_name.ilike(f"%{keyword}%"))
@@ -175,7 +175,7 @@ class DatasetService:
         return {"list": items, "total": total}
 
     def _check_owner(self, dataset: ExpressionMetadata, current_user: User) -> None:
-        if current_user.role == "admin":
+        if current_user.role in {"admin", "auditor"}:
             return
         if dataset.owner_user_id != current_user.id:
             raise ResourceForbiddenError()

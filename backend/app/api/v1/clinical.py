@@ -1,29 +1,36 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.api.deps import get_db
+from app.api.deps import get_db, require_roles
 from app.models.cell_metadata import CellMetadata
 from app.models.search_task import SearchTask
 from app.models.dataset import ExpressionMetadata
+from app.models.user import User
 from app.utils.response import success
 
 router = APIRouter(prefix="/clinical", tags=["Clinical Features"])
 
 
 @router.post("/phenotype-inference")
-def phenotype_inference(db: Session = Depends(get_db)):
-    """1. 智能表型推断 - 查询真实的细胞类型分布"""
-    # 聚合真实数据库中的细胞类型
+def phenotype_inference(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "user")),
+):
+    """智能表型推断：基于当前可访问数据的细胞类型分布做简化统计。"""
     results = (
         db.query(CellMetadata.cell_type, func.count(CellMetadata.id).label("count"))
+        .join(ExpressionMetadata, ExpressionMetadata.id == CellMetadata.dataset_id)
+        .filter(ExpressionMetadata.deleted_flag.is_(False))
         .group_by(CellMetadata.cell_type)
-        .all()
     )
+    if current_user.role != "admin":
+        results = results.filter(ExpressionMetadata.owner_user_id == current_user.id)
+    rows = results.all()
 
-    total = sum(r.count for r in results) if results else 1
+    total = sum(r.count for r in rows) if rows else 1
 
     inferred = []
-    for r in results:
+    for r in rows:
         if r.cell_type:
             inferred.append(
                 {
@@ -37,23 +44,28 @@ def phenotype_inference(db: Session = Depends(get_db)):
 
 
 @router.get("/diagnostic-comparison")
-def diagnostic_comparison(db: Session = Depends(get_db)):
-    """2. 诊断案例对比 - 查询真实的检索历史记录"""
+def diagnostic_comparison(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "user")),
+):
+    """诊断案例对比：返回可访问的历史检索任务摘要。"""
     tasks = (
         db.query(SearchTask)
         .filter(SearchTask.task_type == "search")
-        .order_by(SearchTask.id.desc())
-        .limit(5)
-        .all()
     )
+    if current_user.role != "admin":
+        tasks = tasks.filter(SearchTask.owner_user_id == current_user.id)
+    rows = tasks.order_by(SearchTask.id.desc()).limit(5).all()
     cases = []
-    for t in tasks:
+    for t in rows:
+        payload = t.request_payload or {}
         cases.append(
             {
                 "case_id": t.task_id,
-                "similarity": 1.0,
-                "diagnosis": f"Task {t.status}",
-                "treatment": "N/A",
+                "status": t.status,
+                "result_count": payload.get("result_count", 0),
+                "latency_ms": payload.get("latency_ms"),
+                "note": "历史检索摘要，不包含人工诊断结论",
             }
         )
     return success(
@@ -62,14 +74,18 @@ def diagnostic_comparison(db: Session = Depends(get_db)):
 
 
 @router.get("/preprocessing-progress")
-def preprocessing_progress(db: Session = Depends(get_db)):
-    """3. 实时预处理进度监控 - 查询真实的预处理任务"""
-    task = (
+def preprocessing_progress(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "user")),
+):
+    """实时预处理进度监控：查询最近的预处理任务。"""
+    query = (
         db.query(SearchTask)
-        .filter(SearchTask.task_type == "preprocess")
-        .order_by(SearchTask.id.desc())
-        .first()
+        .filter(SearchTask.task_type == "preprocess_dataset")
     )
+    if current_user.role != "admin":
+        query = query.filter(SearchTask.owner_user_id == current_user.id)
+    task = query.order_by(SearchTask.id.desc()).first()
     if task:
         return success(
             {
@@ -92,25 +108,29 @@ def preprocessing_progress(db: Session = Depends(get_db)):
 
 
 @router.post("/differential-gene-analysis")
-def differential_gene_analysis(db: Session = Depends(get_db)):
-    """4. 差异基因分析 - 基于真实数据集"""
-    ds = db.query(ExpressionMetadata).first()
+def differential_gene_analysis(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "user")),
+):
+    """差异基因分析占位：当前后端未实现分组统计，不返回伪造基因。"""
+    query = db.query(ExpressionMetadata).filter(ExpressionMetadata.deleted_flag.is_(False))
+    if current_user.role != "admin":
+        query = query.filter(ExpressionMetadata.owner_user_id == current_user.id)
+    dataset_count = query.count()
     return success(
         {
-            "analysis_id": f"DEG-DS-{ds.id if ds else 'None'}",
-            "up_regulated": [{"gene": "GeneA", "log2fc": 2.1, "p_value": 0.01}]
-            if ds
-            else [],
-            "down_regulated": [{"gene": "GeneB", "log2fc": -1.5, "p_value": 0.05}]
-            if ds
-            else [],
+            "analysis_available": False,
+            "dataset_count": dataset_count,
+            "up_regulated": [],
+            "down_regulated": [],
             "volcano_plot_url": "",
+            "message": "当前版本未实现真实差异基因统计；请勿将此接口输出作为医学分析结论。",
         }
     )
 
 
 @router.get("/api-docs-sdk")
-def api_docs_sdk():
+def api_docs_sdk(_: User = Depends(require_roles("admin", "service"))):
     """5. API 文档与 SDK"""
     import urllib.request
 

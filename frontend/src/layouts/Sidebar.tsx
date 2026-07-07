@@ -140,7 +140,7 @@ const NAV_GROUPS: NavGroup[] = [
         path: "/app/reports",
         label: "诊断报告",
         icon: "reports",
-        roles: ["admin", "user", "auditor"],
+        roles: ["admin", "dev", "user", "auditor"],
       },
     ],
   },
